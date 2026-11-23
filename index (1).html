@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Planejador da Tatiana</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Figtree:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Layout: faixa de resumo no topo; abaixo, coluna "Criar" (esquerda) e coluna "Histórico" (direita). */
+:root {
+  --bg: #f3f6f5;
+  --surface: #ffffff;
+  --ink: #1d2b2e;
+  --muted: #5d6f72;
+  --line: #d9e2e0;
+  --accent: #2c6b66;
+  --accent-ink: #ffffff;
+  --accent-soft: #dcebe8;
+  --plum: #7b4a6d;
+  --plum-soft: #efe3ec;
+  --font-display: "Fraunces", Georgia, "Times New Roman", serif;
+  --font-body: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #131c1e; --surface: #1b2729; --ink: #e6efed; --muted: #9fb2b0; --line: #2d3d3f;
+    --accent: #6fbdb5; --accent-ink: #0f1d1c; --accent-soft: #233c3a; --plum: #d3a5c6; --plum-soft: #3a2736;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #131c1e; --surface: #1b2729; --ink: #e6efed; --muted: #9fb2b0; --line: #2d3d3f;
+  --accent: #6fbdb5; --accent-ink: #0f1d1c; --accent-soft: #233c3a; --plum: #d3a5c6; --plum-soft: #3a2736;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.5; }
+h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text-wrap: balance; }
+button, input, select, textarea { font: inherit; color: inherit; }
+.wrap { max-width: 1180px; margin: 0 auto; padding: 20px 16px 48px; display: flex; flex-direction: column; gap: 20px; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 16px; }
+header h1 { font-size: 28px; }
+header p { margin: 0; color: var(--muted); max-width: 60ch; }
+
+.tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.tile { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; min-width: 0; }
+.tile .lbl { color: var(--muted); font-size: 13px; }
+.tile .val { font-family: var(--font-display); font-size: 26px; font-weight: 600; line-height: 1.2; overflow-wrap: anywhere; }
+.tile .val.small { font-size: 18px; }
+.bars { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+.bar { display: grid; grid-template-columns: 74px 1fr 24px; align-items: center; gap: 8px; font-size: 13px; }
+.bar i { display: block; height: 8px; border-radius: 4px; background: var(--accent); min-width: 2px; }
+.bar span:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+
+.main { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.panel h2 { font-size: 20px; }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field > label, .field > .legend { font-weight: 600; font-size: 14px; }
+.hint { color: var(--muted); font-size: 13px; margin: 0; }
+textarea, input[type="text"], input[type="search"], select {
+  width: 100%; border: 1px solid var(--line); background: var(--bg); border-radius: 8px; padding: 10px 12px;
+}
+textarea { resize: vertical; min-height: 84px; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+.tabs, .choices { display: flex; flex-wrap: wrap; gap: 8px; }
+.tab, .choice { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 8px 12px; cursor: pointer; }
+.tab[aria-pressed="true"], .choice[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+.choice { flex: 1 1 150px; text-align: left; display: flex; flex-direction: column; gap: 2px; }
+.choice small { opacity: .85; font-size: 12px; }
+.btn { border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink); border-radius: 8px; padding: 10px 16px; cursor: pointer; font-weight: 600; }
+.btn.ghost { background: transparent; color: var(--accent); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.suggest { display: flex; flex-direction: column; gap: 8px; }
+.suggest button { text-align: left; border: 1px dashed var(--accent); background: var(--accent-soft); border-radius: 8px; padding: 8px 12px; cursor: pointer; }
+.suggest button b { display: block; }
+.suggest button span { color: var(--muted); font-size: 13px; }
+.status { font-size: 13px; color: var(--muted); min-height: 20px; }
+.status.err { color: #b3261e; }
+:root[data-theme="dark"] .status.err { color: #ffb4ab; }
+.doc { font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; font-size: 13px; line-height: 1.55; min-height: 320px; white-space: pre-wrap; }
+
+.filters { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.filters .full { grid-column: 1 / -1; }
+.check { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.list { display: flex; flex-direction: column; gap: 8px; max-height: 640px; overflow-y: auto; }
+.item { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; background: var(--bg); }
+.item.active { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
+.item .t { font-weight: 600; overflow-wrap: anywhere; cursor: pointer; background: none; border: 0; text-align: left; padding: 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; font-size: 12px; }
+.chip { border-radius: 999px; padding: 2px 10px; background: var(--accent-soft); }
+.chip.f { background: var(--plum-soft); }
+.item .meta { display: flex; justify-content: space-between; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; }
+.item .acts { display: flex; gap: 4px; }
+.icon { border: 1px solid var(--line); background: var(--surface); border-radius: 6px; padding: 2px 8px; cursor: pointer; font-size: 12px; }
+.empty { color: var(--muted); text-align: center; padding: 20px 8px; }
+
+@media (max-width: 900px) {
+  .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .main { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Planejador da Tatiana</h1>
+    <p>Roteiros de Reels, carrosséis e cards para o Instagram, na voz da Tatiana, com histórico das últimas criações.</p>
+  </header>
+
+  <section class="tiles" aria-label="Resumo">
+    <div class="tile"><div class="lbl">Roteiros criados</div><div class="val" id="t-total">0</div></div>
+    <div class="tile"><div class="lbl">Nos últimos 30 dias</div><div class="val" id="t-mes">0</div></div>
+    <div class="tile"><div class="lbl">Por formato</div><div class="bars" id="t-formatos"></div></div>
+    <div class="tile"><div class="lbl">Objetivo mais usado</div><div class="val small" id="t-cta">Ainda sem dados</div></div>
+  </section>
+
+  <div class="main">
+    <section class="panel" aria-labelledby="h-criar">
+      <h2 id="h-criar">Criar roteiro</h2>
+
+      <div class="field">
+        <span class="legend">1. Tema</span>
+        <div class="tabs" role="group" aria-label="Como definir o tema">
+          <button class="tab" id="m-tema" aria-pressed="true" type="button">Escrever um tema</button>
+          <button class="tab" id="m-ref" aria-pressed="false" type="button">Adaptar uma referência</button>
+        </div>
+        <textarea id="tema" placeholder="Ex.: A ansiedade de tentar controlar o futuro" aria-label="Tema ou referência"></textarea>
+        <p class="hint" id="tema-hint">Escreva uma pauta, uma frase ou uma dúvida de paciente (sem dados que identifiquem a pessoa).</p>
+        <div class="row">
+          <button class="btn ghost" id="b-sug" type="button">Sugerir 3 temas</button>
+          <span class="status" id="sug-status" role="status"></span>
+        </div>
+        <div class="suggest" id="sug"></div>
+      </div>
+
+      <div class="field">
+        <span class="legend">2. Formato</span>
+        <div class="choices" id="formatos" role="group" aria-label="Formato"></div>
+      </div>
+
+      <div class="field">
+        <span class="legend">3. Objetivo (CTA)</span>
+        <div class="choices" id="ctas" role="group" aria-label="Objetivo"></div>
+      </div>
+
+      <div class="row">
+        <button class="btn" id="b-gerar" type="button">Gerar roteiro</button>
+        <button class="btn ghost" id="b-parar" type="button" hidden>Parar</button>
+        <span class="status" id="status" role="status"></span>
+      </div>
+
+      <div class="field">
+        <label for="doc">Documento final</label>
+        <textarea id="doc" class="doc" placeholder="O roteiro aparece aqui. Você pode editar o texto antes de copiar."></textarea>
+        <div class="row">
+          <button class="btn" id="b-copiar" type="button" disabled>Copiar tudo</button>
+          <button class="btn ghost" id="b-tele" type="button" hidden>Copiar só o teleprompter</button>
+          <button class="btn ghost" id="b-salvar" type="button" hidden>Salvar alterações</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="h-hist">
+      <h2 id="h-hist">Histórico</h2>
+      <p class="hint" id="store-note"></p>
+      <div class="filters">
+        <input type="search" id="q" class="full" placeholder="Buscar no histórico" aria-label="Buscar no histórico">
+        <select id="f-formato" aria-label="Filtrar por formato"><option value="">Todos os formatos</option></select>
+        <select id="f-cta" aria-label="Filtrar por objetivo"><option value="">Todos os objetivos</option></select>
+        <label class="check full"><input type="checkbox" id="f-fav"> Mostrar só favoritos</label>
+      </div>
+      <div class="list" id="lista"></div>
+    </section>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ---------- Configuração do endpoint no GitHub ---------- */
+// Substitua pela URL do seu Cloudflare Worker após publicar:
+const WORKER_URL = "https://planejador-tatiana.gabismarketing26.workers.dev";
+
+const FORMATOS = [
+  { id: "reels", nome: "Reels", sub: "Vídeo com teleprompter" },
+  { id: "carrossel", nome: "Carrossel", sub: "Psicoeducação e salvamentos" },
+  { id: "card", nome: "Card único", sub: "Frase de impacto" }
+];
+const CTAS = [
+  { id: "isca", nome: "Isca digital", sub: "Autoavaliação no link da bio",
+    texto: 'Direcione para a autoavaliação gratuita "O que controla sua vida mentalmente?" (7 perguntas, link na bio).' },
+  { id: "agenda", nome: "Agendamento direto", sub: "Conversa inicial pelo WhatsApp",
+    texto: "Convide para agendar uma conversa inicial ou sessão online pelo WhatsApp." },
+  { id: "seguir", nome: "Crescimento de perfil", sub: "Seguir o perfil",
+    texto: "Convide a pessoa a seguir o perfil @psi_tatianaferreira para acompanhar mais reflexões." },
+  { id: "engaja", nome: "Engajamento", sub: "Pergunta aberta nos comentários",
+    texto: "Faça uma pergunta ética e aberta que incentive comentários." }
+];
+
+const MODELO_REELS = [
+"====================================================================",
+"DOC: Roteiro - Reels - [Nome do Tema]",
+"====================================================================",
+"",
+"📌 1. DIRETRIZES DE GRAVAÇÃO E TELEPROMPTER",
+"- Objetivo do Vídeo: [breve]",
+"- Tom de Voz: Sereno, acolhedor e pausado.",
+"- Duração Estimada: [ex.: 1min30s, a ~130 palavras por minuto]",
+"",
+"---",
+"",
+"📝 2. ROTEIRO CENA A CENA (TEXTO PARA O TELEPROMPTER DO EDITS)",
+"",
+"[BLOCO 1 - GANCHO / 0s a 10s]",
+"(texto exato para leitura em voz alta)",
+"",
+"[BLOCO 2 - DESENVOLVIMENTO / IDENTIFICAÇÃO]",
+"(texto exato)",
+"",
+"[BLOCO 3 - CONTEXTO PSICANALÍTICO]",
+"(texto exato)",
+"",
+"[BLOCO 4 - CTA FINAL / CHAMADA PARA AÇÃO]",
+"(texto exato da chamada escolhida)",
+"",
+"---",
+"",
+"📱 3. TEXTOS DE APOIO NA TELA (LEGENDAS EM VÍDEO)",
+"- Tela 01 (Início): frase curta destacada",
+"- Tela 02 (Meio): frase de reforço",
+"- Tela 03 (Final/CTA): chamada visual",
+"",
+"---",
+"",
+"💬 4. LEGENDA DO POST PARA O INSTAGRAM",
+"(título em destaque, 2 a 4 parágrafos curtos, reflexivos e acolhedores, CTA clara alinhada ao objetivo, 5 a 8 hashtags do nicho como #psicanalise #saudemental #terapiaonline #autoconhecimento #ressignificar)",
+"",
+"---",
+"",
+"✂️ 5. DICAS DE EDIÇÃO EM ETAPAS",
+"- Etapa 1 (Corte seco): retirar pausas longas ou respirações excessivas entre os blocos.",
+"- Etapa 2 (Legendas automáticas): estilo limpo, fonte sem serifa, destaque nas palavras-chave da emoção.",
+"- Etapa 3 (Trilha sonora): música instrumental suave com volume baixo (8% a 10%).",
+"===================================================================="
+].join("\n");
+
+const MODELO_CARROSSEL = [
+"====================================================================",
+"DOC: Roteiro - Carrossel - [Nome do Tema]",
+"====================================================================",
+"",
+"📌 1. DIRETRIZES DO CARROSSEL",
+"- Objetivo do Post: [breve]",
+"- Tom de Voz: Sereno, acolhedor, sem jargão.",
+"- Quantidade de Slides: 7 a 9",
+"",
+"---",
+"",
+"📝 2. TEXTO SLIDE A SLIDE (no máximo 35 palavras por slide, uma ideia por slide)",
+"",
+"[SLIDE 1 - CAPA / GANCHO]",
+"título (até 10 palavras) e subtítulo opcional",
+"",
+"[SLIDES 2 em diante - DESENVOLVIMENTO]",
+"um bloco por slide: identificação, explicação psicanalítica simples, exemplo cotidiano, virada de olhar",
+"",
+"[SLIDE FINAL - CTA]",
+"texto exato da chamada escolhida",
+"",
+"---",
+"",
+"🎨 3. SUGESTÕES VISUAIS",
+"- Paleta e fonte: tons suaves e acolhedores, fonte sem serifa, destaque na palavra-chave de cada slide.",
+"- Dica de layout: uma dica por tipo de slide.",
+"",
+"---",
+"",
+"💬 4. LEGENDA DO POST PARA O INSTAGRAM",
+"(mesmo padrão do Reels; incentive salvar e compartilhar)",
+"===================================================================="
+].join("\n");
+
+const MODELO_CARD = [
+"====================================================================",
+"DOC: Roteiro - Card Único - [Nome do Tema]",
+"====================================================================",
+"",
+"🖼️ 1. TEXTO DO CARD",
+"- Frase principal (até 20 palavras)",
+"- Frase de apoio opcional (até 15 palavras)",
+"- Chamada visual (CTA curta)",
+"",
+"🎨 2. SUGESTÃO VISUAL",
+"- Layout, fonte sem serifa, cor e posição do destaque.",
+"",
+"💬 3. LEGENDA DO POST PARA O INSTAGRAM",
+"(mesmo padrão do Reels, mais curta: 1 a 3 parágrafos)",
+"===================================================================="
+].join("\n");
+const MODELOS = { reels: MODELO_REELS, carrossel: MODELO_CARROSSEL, card: MODELO_CARD };
+
+const BASE = [
+"Você é o assistente \"Planejador da Tatiana\", consultor estratégico de conteúdo e roteirista sênior da psicanalista clínica Tatiana Ferreira.",
+"Missão da marca: \"Auxilio pessoas a compreender suas emoções e ressignificar a vida, obtendo uma visão mais clara sobre si.\"",
+"Instagram: @psi_tatianaferreira. Tom: sereno, acolhedor, pausado, reflexivo, com base psicanalítica em linguagem simples.",
+"REGRAS OBRIGATÓRIAS:",
+"- Escreva tudo em português do Brasil.",
+"- Saída em texto simples. Nada de HTML, código, tabelas ou markdown (sem asteriscos nem #### de título).",
+"- Nunca prometa cura ou resultado garantido, nunca faça diagnóstico, nunca sugira que o conteúdo substitui atendimento.",
+"- Nunca use caso ou fala identificável de paciente; generalize e anonimize.",
+"- Sem sensacionalismo e sem culpabilizar quem assiste.",
+"- Se o tema tocar em risco (autolesão, suicídio, violência), trate com cuidado extra e termine a legenda orientando a buscar ajuda (CVV 188).",
+"- Estrutura do conteúdo: gancho que nomeia uma vivência reconhecível, identificação, contexto psicanalítico simples (sem jargão sem explicação), CTA.",
+"- Texto falado em frases curtas, com pausas naturais. Todo texto de fala ou de tela deve estar pronto para uso, sem colchetes de preenchimento.",
+"- Responda SOMENTE com o documento, no modelo abaixo, sem comentários antes ou depois."
+].join("\n");
+
+const $ = (id) => document.getElementById(id);
+const state = { modo: "tema", formato: "reels", cta: "isca", items: [], atualId: null, gerando: false, ctrl: null, store: null, textoSalvo: "" };
+
+function el(tag, props, ...kids) {
+  const n = document.createElement(tag);
+  if (props) for (const k in props) {
+    if (k === "class") n.className = props[k];
+    else if (k.startsWith("on")) n.addEventListener(k.slice(2), props[k]);
+    else n.setAttribute(k, props[k]);
+  }
+  for (const c of kids) if (c != null) n.append(c.nodeType ? c : document.createTextNode(c));
+  return n;
+}
+const nomeFormato = (id) => (FORMATOS.find(f => f.id === id) || {}).nome || id;
+const nomeCta = (id) => (CTAS.find(c => c.id === id) || {}).nome || id;
+const fmtData = (iso) => { try { return new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }); } catch (e) { return ""; } };
+
+/* ---------- Armazenamento local (localStorage / memória) ---------- */
+function criarStoreLocal() {
+  let mem = [];
+  const KEY = "planejador-tatiana-v1";
+  try { const r = localStorage.getItem(KEY); if (r) mem = JSON.parse(r) || []; } catch (e) {}
+  const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(mem)); } catch (e) {} };
+  return {
+    nota: "Histórico guardado localmente neste navegador.",
+    async listar() { return mem.slice(); },
+    async salvar(it) { const i = mem.findIndex(x => x.id === it.id); if (i >= 0) mem[i] = it; else mem.push(it); persist(); },
+    async apagar(id) { mem = mem.filter(x => x.id !== id); persist(); }
+  };
+}
+
+/* ---------- Resumo ---------- */
+function contar(lista, chave) { const m = {}; lista.forEach(i => { m[i[chave]] = (m[i[chave]] || 0) + 1; }); return m; }
+function renderResumo() {
+  const its = state.items;
+  $("t-total").textContent = String(its.length);
+  const limite = Date.now() - 30 * 864e5;
+  $("t-mes").textContent = String(its.filter(i => new Date(i.criadoEm).getTime() >= limite).length);
+  const porF = contar(its, "formato"), max = Math.max(1, ...FORMATOS.map(f => porF[f.id] || 0));
+  const box = $("t-formatos"); box.replaceChildren();
+  FORMATOS.forEach(f => {
+    const n = porF[f.id] || 0, barra = el("i"); barra.style.width = (n / max * 100) + "%";
+    box.append(el("div", { class: "bar" }, el("span", null, f.nome), el("div", null, barra), el("span", null, String(n))));
+  });
+  const porC = contar(its, "cta"), top = Object.keys(porC).sort((a, b) => porC[b] - porC[a])[0];
+  $("t-cta").textContent = top ? nomeCta(top) + " (" + porC[top] + ")" : "Ainda sem dados";
+}
+
+/* ---------- Histórico ---------- */
+function renderLista() {
+  const q = $("q").value.trim().toLowerCase(), ff = $("f-formato").value, fc = $("f-cta").value, fav = $("f-fav").checked;
+  const its = state.items.filter(i =>
+    (!ff || i.formato === ff) && (!fc || i.cta === fc) && (!fav || i.favorito) &&
+    (!q || (i.titulo + " " + i.tema + " " + i.texto).toLowerCase().includes(q)))
+    .sort((a, b) => new Date(b.criadoEm) - new Date(a.criadoEm));
+  const box = $("lista"); box.replaceChildren();
+  if (!its.length) { box.append(el("div", { class: "empty" }, state.items.length ? "Nenhum roteiro com esses filtros." : "Nenhum roteiro criado ainda. O primeiro aparece aqui.")); return; }
+  its.forEach(i => {
+    const abrir = el("button", { class: "t", type: "button", onclick: () => abrirItem(i.id) }, i.titulo || i.tema);
+    const fb = el("button", { class: "icon", type: "button", "aria-pressed": String(!!i.favorito), title: "Favoritar", onclick: () => alternarFav(i.id) }, i.favorito ? "★ Favorito" : "☆ Favoritar");
+    let confirma = false;
+    const del = el("button", { class: "icon", type: "button", onclick: () => { if (!confirma) { confirma = true; del.textContent = "Confirmar exclusão"; setTimeout(() => { confirma = false; del.textContent = "Excluir"; }, 3000); } else apagarItem(i.id); } }, "Excluir");
+    box.append(el("div", { class: "item" + (i.id === state.atualId ? " active" : "") },
+      abrir,
+      el("div", { class: "chips" }, el("span", { class: "chip f" }, nomeFormato(i.formato)), el("span", { class: "chip" }, nomeCta(i.cta))),
+      el("div", { class: "meta" }, el("span", null, fmtData(i.criadoEm)), el("span", { class: "acts" }, fb, del))));
+  });
+}
+function popularFiltros() {
+  FORMATOS.forEach(f => $("f-formato").append(el("option", { value: f.id }, f.nome)));
+  CTAS.forEach(c => $("f-cta").append(el("option", { value: c.id }, c.nome)));
+}
+function abrirItem(id) {
+  const it = state.items.find(x => x.id === id); if (!it) return;
+  state.atualId = id; state.textoSalvo = it.texto;
+  $("doc").value = it.texto; $("tema").value = it.tema;
+  state.formato = it.formato; state.cta = it.cta; state.modo = it.modo || "tema";
+  renderEscolhas(); renderModo(); atualizarBotoesDoc(); renderLista();
+  $("status").textContent = "Roteiro do histórico aberto.";
+}
+async function alternarFav(id) {
+  const it = state.items.find(x => x.id === id); if (!it) return;
+  it.favorito = !it.favorito;
+  try { await state.store.salvar(it); } catch (e) { $("status").textContent = "Não foi possível salvar o favorito."; $("status").className = "status err"; }
+  renderLista();
+}
+async function apagarItem(id) {
+  try { await state.store.apagar(id); state.items = state.items.filter(x => x.id !== id); if (state.atualId === id) { state.atualId = null; } }
+  catch (e) { $("status").textContent = "Não foi possível excluir."; $("status").className = "status err"; }
+  renderResumo(); renderLista();
+}
+
+/* ---------- Formulário ---------- */
+function renderEscolhas() {
+  const f = $("formatos"); f.replaceChildren();
+  FORMATOS.forEach(x => f.append(el("button", { class: "choice", type: "button", "aria-pressed": String(state.formato === x.id), onclick: () => { state.formato = x.id; renderEscolhas(); atualizarBotoesDoc(); } }, el("span", null, x.nome), el("small", null, x.sub))));
+  const c = $("ctas"); c.replaceChildren();
+  CTAS.forEach(x => c.append(el("button", { class: "choice", type: "button", "aria-pressed": String(state.cta === x.id), onclick: () => { state.cta = x.id; renderEscolhas(); } }, el("span", null, x.nome), el("small", null, x.sub))));
+}
+function renderModo() {
+  const ref = state.modo === "ref";
+  $("m-tema").setAttribute("aria-pressed", String(!ref)); $("m-ref").setAttribute("aria-pressed", String(ref));
+  $("tema").placeholder = ref ? "Cole aqui o texto do post de referência" : "Ex.: A ansiedade de tentar controlar o futuro";
+  $("tema-hint").textContent = ref ? "Cole o texto do post. Links não são abertos aqui. O roteiro reescreve a ideia na voz da Tatiana, sem copiar o original." : "Escreva uma pauta, uma frase ou uma dúvida de paciente (sem dados que identifiquem a pessoa).";
+}
+function atualizarBotoesDoc() {
+  const tem = $("doc").value.trim().length > 0;
+  $("b-copiar").disabled = !tem;
+  $("b-tele").hidden = !(tem && /Roteiro - Reels/i.test($("doc").value));
+  $("b-salvar").hidden = !(state.atualId && $("doc").value !== state.textoSalvo);
+}
+function erro(msg) { $("status").textContent = msg; $("status").className = "status err"; }
+function info(msg) { $("status").textContent = msg; $("status").className = "status"; }
+
+/* ---------- Geração com Claude via Cloudflare Worker ---------- */
+function montarPrompt() {
+  const cta = CTAS.find(c => c.id === state.cta), t = $("tema").value.trim();
+  const entrada = state.modo === "ref"
+    ? "TEXTO DE REFERÊNCIA (de outro perfil). Reescreva a ideia com a voz da Tatiana, sem copiar frases do original:\n" + t
+    : "TEMA: " + t;
+  return BASE + "\n\nFORMATO: " + nomeFormato(state.formato) + "\nOBJETIVO/CTA: " + cta.nome + ". " + cta.texto + "\n\n" + entrada +
+    "\n\nMODELO DO DOCUMENTO (siga a estrutura, troque as instruções entre parênteses pelo conteúdo real e dê um nome curto ao tema no título):\n" + MODELOS[state.formato];
+}
+function tituloDoDoc(texto, tema) {
+  const m = texto.match(/DOC:\s*Roteiro\s*-\s*[^-\n]+-\s*(.+)/i);
+  return (m && m[1].trim()) || tema.slice(0, 80);
+}
+
+async function streamRoteiroClaude(prompt, signal, onChunk) {
+  if (!WORKER_URL || WORKER_URL.includes("SEU-WORKER")) {
+    throw new Error("WORKER_NAO_CONFIGURADO");
+  }
+
+  const res = await fetch(WORKER_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "gerar", prompt }),
+    signal
+  });
+
+  if (!res.ok) {
+    const err = new Error("HTTP_" + res.status);
+    err.status = res.status;
+    throw err;
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let acumulado = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    acumulado += decoder.decode(value, { stream: true });
+    if (onChunk) onChunk(acumulado);
+  }
+
+  return acumulado;
+}
+
+async function sugerirTemasClaude(prompt) {
+  if (!WORKER_URL || WORKER_URL.includes("SEU-WORKER")) {
+    throw new Error("WORKER_NAO_CONFIGURADO");
+  }
+
+  const res = await fetch(WORKER_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "sugerir", prompt })
+  });
+
+  if (!res.ok) {
+    const err = new Error("HTTP_" + res.status);
+    err.status = res.status;
+    throw err;
+  }
+
+  const data = await res.json();
+  const raw = String(data?.text || "").trim();
+  const match = raw.match(/\[[\s\S]*\]/);
+  const jsonStr = match ? match[0] : raw;
+  const parsed = JSON.parse(jsonStr);
+  return Array.isArray(parsed) ? parsed : [];
+}
+
+async function gerar() {
+  const tema = $("tema").value.trim();
+  if (tema.length < 5) { erro("Escreva um tema ou cole uma referência antes de gerar."); return; }
+
+  state.gerando = true;
+  state.ctrl = new AbortController();
+  $("b-gerar").disabled = true;
+  $("b-parar").hidden = false;
+  info("Gerando o roteiro…");
+  $("doc").value = "";
+  $("doc").readOnly = true;
+  state.atualId = null;
+
+  let texto = "";
+  try {
+    texto = await streamRoteiroClaude(montarPrompt(), state.ctrl.signal, (parcial) => {
+      texto = parcial;
+      $("doc").value = parcial;
+    });
+    $("doc").value = texto;
+    if (texto.trim()) {
+      await salvarNovo(texto, tema);
+      info("Roteiro pronto e salvo no histórico.");
+    } else {
+      erro("A resposta veio vazia. Tente novamente.");
+    }
+  } catch (e) {
+    if (state.ctrl.signal.aborted || e?.name === "AbortError") {
+      info("Geração interrompida.");
+    } else if (e?.message === "WORKER_NAO_CONFIGURADO") {
+      erro("Configure a URL do seu Cloudflare Worker no código antes de gerar.");
+    } else if (e?.status === 429) {
+      erro("Muitas solicitações em pouco tempo. Aguarde um instante e tente de novo.");
+    } else {
+      erro("Não foi possível gerar agora. Verifique a conexão ou a chave no Worker.");
+    }
+  } finally {
+    state.gerando = false;
+    $("b-gerar").disabled = false;
+    $("b-parar").hidden = true;
+    $("doc").readOnly = false;
+    atualizarBotoesDoc();
+    renderResumo();
+    renderLista();
+  }
+}
+
+async function salvarNovo(texto, tema) {
+  const it = { id: String(Date.now()), criadoEm: new Date().toISOString(), tema: tema, modo: state.modo, formato: state.formato, cta: state.cta, titulo: tituloDoDoc(texto, tema), texto: texto, favorito: false };
+  state.items.push(it); state.atualId = it.id; state.textoSalvo = texto;
+  try { await state.store.salvar(it); } catch (e) { erro("O roteiro foi gerado, mas não foi salvo no histórico."); }
+}
+async function salvarAlteracoes() {
+  const it = state.items.find(x => x.id === state.atualId); if (!it) return;
+  it.texto = $("doc").value; it.titulo = tituloDoDoc(it.texto, it.tema); state.textoSalvo = it.texto;
+  try { await state.store.salvar(it); info("Alterações salvas."); } catch (e) { erro("Não foi possível salvar as alterações."); }
+  atualizarBotoesDoc(); renderLista();
+}
+
+/* ---------- Sugestões de tema ---------- */
+async function sugerir() {
+  $("sug-status").textContent = "Pensando em temas…";
+  $("b-sug").disabled = true;
+  $("sug").replaceChildren();
+
+  const recentes = state.items.slice(-10).map(i => i.titulo).join("; ") || "nenhum ainda";
+  const p = BASE.split("\nREGRAS OBRIGATÓRIAS")[0] +
+    "\nSugira 3 temas de conteúdo para o Instagram, alinhados à missão da marca (emoções, controle, ansiedade, ressignificação, autoconhecimento), diferentes dos já criados: " + recentes +
+    '.\nResponda SOMENTE com um array JSON válido de 3 objetos {"titulo": "...", "angulo": "uma linha com o ângulo"}, em português do Brasil, sem markdown.';
+
+  try {
+    const arr = await sugerirTemasClaude(p);
+    arr.slice(0, 3).forEach(s => {
+      $("sug").append(
+        el("button", {
+          type: "button",
+          onclick: () => {
+            $("tema").value = String(s.titulo || "") + ". " + String(s.angulo || "");
+            state.modo = "tema";
+            renderModo();
+          }
+        },
+          el("b", null, String(s.titulo || "")),
+          el("span", null, String(s.angulo || ""))
+        )
+      );
+    });
+    $("sug-status").textContent = arr.length ? "Clique em uma ideia para usar como tema." : "Não vieram sugestões. Tente de novo.";
+  } catch (e) {
+    $("sug-status").textContent = e?.message === "WORKER_NAO_CONFIGURADO"
+      ? "Configure a URL do Worker para usar as sugestões."
+      : "Não foi possível sugerir agora.";
+  } finally {
+    $("b-sug").disabled = false;
+  }
+}
+
+/* ---------- Copiar ---------- */
+async function copiar(texto, ok) {
+  try { await navigator.clipboard.writeText(texto); info(ok); }
+  catch (e) { $("doc").focus(); $("doc").select(); info("Seu navegador bloqueou a cópia automática. O texto está selecionado, use Ctrl+C."); }
+}
+function teleprompter(texto) {
+  const linhas = texto.split("\n"), ini = linhas.findIndex(l => /ROTEIRO CENA A CENA/i.test(l));
+  if (ini < 0) return "";
+  const out = [];
+  for (let i = ini + 1; i < linhas.length; i++) {
+    if (/^\s*---/.test(linhas[i])) break;
+    if (/^\s*\[BLOCO/i.test(linhas[i])) continue;
+    out.push(linhas[i]);
+  }
+  return out.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+/* ---------- Início ---------- */
+function ligar() {
+  $("m-tema").addEventListener("click", () => { state.modo = "tema"; renderModo(); });
+  $("m-ref").addEventListener("click", () => { state.modo = "ref"; renderModo(); });
+  $("b-gerar").addEventListener("click", gerar);
+  $("b-parar").addEventListener("click", () => { if (state.ctrl) state.ctrl.abort(); });
+  $("b-sug").addEventListener("click", sugerir);
+  $("b-copiar").addEventListener("click", () => copiar($("doc").value, "Documento copiado."));
+  $("b-tele").addEventListener("click", () => { const t = teleprompter($("doc").value); if (t) copiar(t, "Texto do teleprompter copiado."); else erro("Não encontrei a seção do teleprompter."); });
+  $("b-salvar").addEventListener("click", salvarAlteracoes);
+  $("doc").addEventListener("input", atualizarBotoesDoc);
+  ["q", "f-formato", "f-cta", "f-fav"].forEach(id => $(id).addEventListener("input", renderLista));
+}
+async function iniciar() {
+  popularFiltros();
+  renderEscolhas();
+  renderModo();
+  ligar();
+  state.store = criarStoreLocal();
+  $("store-note").textContent = state.store.nota;
+  try {
+    state.items = await state.store.listar();
+  } catch (e) {
+    state.items = [];
+  }
+  renderResumo();
+  renderLista();
+}
+iniciar();
+</script>
+</body>
+</html>
