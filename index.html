@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Figtree:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-/* Layout: faixa de resumo no topo; abaixo, coluna "Criar" (esquerda) e coluna "Histórico" (direita). */
+/* Layout: abas no topo (Roteiros / Materiais). Em Roteiros: faixa de resumo; abaixo, coluna "Criar" e coluna "Histórico". */
 :root {
   --bg: #f3f6f5;
   --surface: #ffffff;
@@ -41,10 +41,15 @@ html, body { margin: 0; }
 body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.5; }
 h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text-wrap: balance; }
 button, input, select, textarea { font: inherit; color: inherit; }
+[hidden] { display: none !important; }
 .wrap { max-width: 1180px; margin: 0 auto; padding: 20px 16px 48px; display: flex; flex-direction: column; gap: 20px; }
 header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 16px; }
 header h1 { font-size: 28px; }
 header p { margin: 0; color: var(--muted); max-width: 60ch; }
+.nav { display: flex; gap: 8px; border-bottom: 1px solid var(--line); }
+.nav button { border: 0; background: none; padding: 10px 14px; cursor: pointer; font-weight: 600; color: var(--muted); border-bottom: 3px solid transparent; margin-bottom: -1px; }
+.nav button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+.view { display: flex; flex-direction: column; gap: 20px; }
 
 .tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
 .tile { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; min-width: 0; }
@@ -62,19 +67,23 @@ header p { margin: 0; color: var(--muted); max-width: 60ch; }
 .field { display: flex; flex-direction: column; gap: 6px; }
 .field > label, .field > .legend { font-weight: 600; font-size: 14px; }
 .hint { color: var(--muted); font-size: 13px; margin: 0; }
-textarea, input[type="text"], input[type="search"], select {
+textarea, input[type="text"], input[type="url"], input[type="search"], select {
   width: 100%; border: 1px solid var(--line); background: var(--bg); border-radius: 8px; padding: 10px 12px;
 }
 textarea { resize: vertical; min-height: 84px; }
 :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+details { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; }
+details summary { cursor: pointer; font-weight: 600; font-size: 14px; }
+details[open] summary { margin-bottom: 8px; }
 
 .tabs, .choices { display: flex; flex-wrap: wrap; gap: 8px; }
 .tab, .choice { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 8px 12px; cursor: pointer; }
 .tab[aria-pressed="true"], .choice[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
-.choice { flex: 1 1 150px; text-align: left; display: flex; flex-direction: column; gap: 2px; }
+.choice { flex: 1 1 130px; text-align: left; display: flex; flex-direction: column; gap: 2px; }
 .choice small { opacity: .85; font-size: 12px; }
 .btn { border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink); border-radius: 8px; padding: 10px 16px; cursor: pointer; font-weight: 600; }
 .btn.ghost { background: transparent; color: var(--accent); }
+.btn.small { padding: 6px 12px; font-size: 13px; }
 .btn:disabled { opacity: .5; cursor: not-allowed; }
 .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .suggest { display: flex; flex-direction: column; gap: 8px; }
@@ -84,11 +93,12 @@ textarea { resize: vertical; min-height: 84px; }
 .status { font-size: 13px; color: var(--muted); min-height: 20px; }
 .status.err { color: #b3261e; }
 :root[data-theme="dark"] .status.err { color: #ffb4ab; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .status.err { color: #ffb4ab; } }
 .doc { font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; font-size: 13px; line-height: 1.55; min-height: 320px; white-space: pre-wrap; }
+.check { display: flex; align-items: center; gap: 8px; font-size: 14px; }
 
 .filters { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .filters .full { grid-column: 1 / -1; }
-.check { display: flex; align-items: center; gap: 8px; font-size: 14px; }
 .list { display: flex; flex-direction: column; gap: 8px; max-height: 640px; overflow-y: auto; }
 .item { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; background: var(--bg); }
 .item.active { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
@@ -101,9 +111,19 @@ textarea { resize: vertical; min-height: 84px; }
 .icon { border: 1px solid var(--line); background: var(--surface); border-radius: 6px; padding: 2px 8px; cursor: pointer; font-size: 12px; }
 .empty { color: var(--muted); text-align: center; padding: 20px 8px; }
 
+/* Materiais */
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.grid2 .full { grid-column: 1 / -1; }
+.mat-group h3 { font-size: 16px; margin: 4px 0 8px; }
+.mat-cat { font-size: 13px; font-weight: 600; color: var(--muted); margin: 8px 0 4px; }
+.mat { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; background: var(--bg); margin-bottom: 6px; }
+.mat a { color: var(--accent); overflow-wrap: anywhere; font-size: 13px; }
+.mat .d { font-size: 14px; }
+
 @media (max-width: 900px) {
   .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .main { grid-template-columns: minmax(0, 1fr); }
+  .grid2 { grid-template-columns: 1fr; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 </style>
@@ -112,87 +132,165 @@ textarea { resize: vertical; min-height: 84px; }
 <div class="wrap">
   <header>
     <h1>Planejador da Tatiana</h1>
-    <p>Roteiros de Reels, carrosséis e cards para o Instagram, na voz da Tatiana, com histórico das últimas criações.</p>
+    <p>Roteiros de Reels, carrosséis, cards e stories para o Instagram, na voz da Tatiana, com histórico e biblioteca de materiais.</p>
   </header>
 
-  <section class="tiles" aria-label="Resumo">
-    <div class="tile"><div class="lbl">Roteiros criados</div><div class="val" id="t-total">0</div></div>
-    <div class="tile"><div class="lbl">Nos últimos 30 dias</div><div class="val" id="t-mes">0</div></div>
-    <div class="tile"><div class="lbl">Por formato</div><div class="bars" id="t-formatos"></div></div>
-    <div class="tile"><div class="lbl">Objetivo mais usado</div><div class="val small" id="t-cta">Ainda sem dados</div></div>
-  </section>
+  <nav class="nav" role="tablist" aria-label="Seções">
+    <button role="tab" id="nav-rot" aria-selected="true" type="button">Roteiros</button>
+    <button role="tab" id="nav-mat" aria-selected="false" type="button">Materiais de produção</button>
+  </nav>
 
-  <div class="main">
-    <section class="panel" aria-labelledby="h-criar">
-      <h2 id="h-criar">Criar roteiro</h2>
-
-      <div class="field">
-        <span class="legend">1. Tema</span>
-        <div class="tabs" role="group" aria-label="Como definir o tema">
-          <button class="tab" id="m-tema" aria-pressed="true" type="button">Escrever um tema</button>
-          <button class="tab" id="m-ref" aria-pressed="false" type="button">Adaptar uma referência</button>
-        </div>
-        <textarea id="tema" placeholder="Ex.: A ansiedade de tentar controlar o futuro" aria-label="Tema ou referência"></textarea>
-        <p class="hint" id="tema-hint">Escreva uma pauta, uma frase ou uma dúvida de paciente (sem dados que identifiquem a pessoa).</p>
-        <div class="row">
-          <button class="btn ghost" id="b-sug" type="button">Sugerir 3 temas</button>
-          <span class="status" id="sug-status" role="status"></span>
-        </div>
-        <div class="suggest" id="sug"></div>
-      </div>
-
-      <div class="field">
-        <span class="legend">2. Formato</span>
-        <div class="choices" id="formatos" role="group" aria-label="Formato"></div>
-      </div>
-
-      <div class="field">
-        <span class="legend">3. Objetivo (CTA)</span>
-        <div class="choices" id="ctas" role="group" aria-label="Objetivo"></div>
-      </div>
-
-      <div class="row">
-        <button class="btn" id="b-gerar" type="button">Gerar roteiro</button>
-        <button class="btn ghost" id="b-parar" type="button" hidden>Parar</button>
-        <span class="status" id="status" role="status"></span>
-      </div>
-
-      <div class="field">
-        <label for="doc">Documento final</label>
-        <textarea id="doc" class="doc" placeholder="O roteiro aparece aqui. Você pode editar o texto antes de copiar."></textarea>
-        <div class="row">
-          <button class="btn" id="b-copiar" type="button" disabled>Copiar tudo</button>
-          <button class="btn ghost" id="b-tele" type="button" hidden>Copiar só o teleprompter</button>
-          <button class="btn ghost" id="b-salvar" type="button" hidden>Salvar alterações</button>
-        </div>
-      </div>
+  <!-- ===================== ROTEIROS ===================== -->
+  <div class="view" id="view-rot">
+    <section class="tiles" aria-label="Resumo">
+      <div class="tile"><div class="lbl">Roteiros criados</div><div class="val" id="t-total">0</div></div>
+      <div class="tile"><div class="lbl">Nos últimos 30 dias</div><div class="val" id="t-mes">0</div></div>
+      <div class="tile"><div class="lbl">Por formato</div><div class="bars" id="t-formatos"></div></div>
+      <div class="tile"><div class="lbl">Objetivo mais usado</div><div class="val small" id="t-cta">Ainda sem dados</div></div>
     </section>
 
-    <section class="panel" aria-labelledby="h-hist">
-      <h2 id="h-hist">Histórico</h2>
-      <p class="hint" id="store-note"></p>
-      <div class="filters">
-        <input type="search" id="q" class="full" placeholder="Buscar no histórico" aria-label="Buscar no histórico">
-        <select id="f-formato" aria-label="Filtrar por formato"><option value="">Todos os formatos</option></select>
-        <select id="f-cta" aria-label="Filtrar por objetivo"><option value="">Todos os objetivos</option></select>
-        <label class="check full"><input type="checkbox" id="f-fav"> Mostrar só favoritos</label>
-      </div>
-      <div class="list" id="lista"></div>
-    </section>
+    <div class="main">
+      <section class="panel" aria-labelledby="h-criar">
+        <h2 id="h-criar">Criar roteiro</h2>
+
+        <div class="field">
+          <span class="legend">1. Tema</span>
+          <div class="tabs" role="group" aria-label="Como definir o tema">
+            <button class="tab" id="m-tema" aria-pressed="true" type="button">Escrever um tema</button>
+            <button class="tab" id="m-ref" aria-pressed="false" type="button">Adaptar uma referência</button>
+          </div>
+          <textarea id="tema" placeholder="Ex.: A ansiedade de tentar controlar o futuro" aria-label="Tema ou referência"></textarea>
+          <p class="hint" id="tema-hint">Escreva uma pauta, uma frase ou uma dúvida de paciente (sem dados que identifiquem a pessoa).</p>
+          <div class="row">
+            <button class="btn ghost" id="b-sug" type="button">Sugerir 3 temas</button>
+            <span class="status" id="sug-status" role="status"></span>
+          </div>
+          <div class="suggest" id="sug"></div>
+        </div>
+
+        <div class="field">
+          <span class="legend">2. Formato</span>
+          <div class="choices" id="formatos" role="group" aria-label="Formato"></div>
+        </div>
+
+        <div class="field">
+          <span class="legend">3. Objetivo (CTA)</span>
+          <div class="choices" id="ctas" role="group" aria-label="Objetivo"></div>
+        </div>
+
+        <div class="field">
+          <label class="check"><input type="checkbox" id="usar-mat"> Sugerir fotos e materiais da biblioteca no roteiro</label>
+          <p class="hint" id="mat-hint"></p>
+          <details>
+            <summary>Identidade visual do perfil (usada nas sugestões e no prompt do Canva)</summary>
+            <textarea id="identidade" rows="5" aria-label="Identidade visual do perfil"></textarea>
+            <p class="hint">Descreva cores (de preferência com os códigos, ex.: #A3B18A), fontes e estilo. Fica salvo neste navegador.</p>
+          </details>
+        </div>
+
+        <div class="row">
+          <button class="btn" id="b-gerar" type="button">Gerar roteiro</button>
+          <button class="btn ghost" id="b-parar" type="button" hidden>Parar</button>
+          <span class="status" id="status" role="status"></span>
+        </div>
+
+        <div class="field">
+          <label for="doc">Documento final</label>
+          <textarea id="doc" class="doc" placeholder="O roteiro aparece aqui. Você pode editar o texto antes de copiar ou baixar."></textarea>
+          <div class="row">
+            <button class="btn" id="b-copiar" type="button" disabled>Copiar tudo</button>
+            <button class="btn" id="b-baixar" type="button" disabled>Baixar roteiro criado</button>
+            <button class="btn ghost" id="b-tele" type="button" hidden>Copiar só o teleprompter</button>
+            <button class="btn ghost" id="b-canva" type="button" hidden>Copiar prompt do Canva</button>
+            <button class="btn ghost" id="b-salvar" type="button" hidden>Salvar alterações</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="h-hist">
+        <h2 id="h-hist">Histórico</h2>
+        <p class="hint">Histórico guardado localmente neste navegador.</p>
+        <div class="filters">
+          <input type="search" id="q" class="full" placeholder="Buscar no histórico" aria-label="Buscar no histórico">
+          <select id="f-formato" aria-label="Filtrar por formato"><option value="">Todos os formatos</option></select>
+          <select id="f-cta" aria-label="Filtrar por objetivo"><option value="">Todos os objetivos</option></select>
+          <label class="check full"><input type="checkbox" id="f-fav"> Mostrar só favoritos</label>
+        </div>
+        <div class="list" id="lista"></div>
+      </section>
+    </div>
+  </div>
+
+  <!-- ===================== MATERIAIS ===================== -->
+  <div class="view" id="view-mat" hidden>
+    <div class="main">
+      <section class="panel" aria-labelledby="h-addmat">
+        <h2 id="h-addmat">Adicionar material</h2>
+        <p class="hint">Cadastre links de fotos, vídeos, portfólio do Canva e referências (Drive, Canva, Pinterest, banco de imagens). Ao gerar um roteiro, a ferramenta escolhe os materiais que combinam com o conteúdo e coloca os links no documento. No Google Drive, deixe o compartilhamento como "Qualquer pessoa com o link".</p>
+        <div class="grid2">
+          <div class="field">
+            <label for="mt-tipo">Tipo</label>
+            <select id="mt-tipo"></select>
+          </div>
+          <div class="field">
+            <label for="mt-cat">Categoria</label>
+            <input type="text" id="mt-cat" list="dl-cats" placeholder="Ex.: Viagens, Ensaio ao ar livre">
+            <datalist id="dl-cats"></datalist>
+          </div>
+          <div class="field full">
+            <label for="mt-link">Link</label>
+            <input type="url" id="mt-link" placeholder="https://drive.google.com/...">
+          </div>
+          <div class="field full">
+            <label for="mt-desc">O que aparece no material</label>
+            <input type="text" id="mt-desc" placeholder="Ex.: Tatiana sorrindo no consultório, luz natural, blusa bege, plano médio">
+            <p class="hint">Quanto mais descritivo, melhor a escolha da IA. Pasta inteira também vale: descreva o conjunto.</p>
+          </div>
+        </div>
+        <div class="row">
+          <button class="btn" id="b-addmat" type="button">Adicionar à biblioteca</button>
+          <span class="status" id="mat-status" role="status"></span>
+        </div>
+
+        <details>
+          <summary>Adicionar vários de uma vez</summary>
+          <p class="hint">Uma linha por material, no formato: Tipo | Categoria | Link | Descrição. Tipos aceitos: Foto pessoal, Foto profissional, Vídeo, Portfólio Canva, Referência visual.</p>
+          <textarea id="mt-lote" rows="5" placeholder="Foto profissional | Ensaio ao ar livre | https://drive.google.com/... | Tatiana sentada no jardim, vestido claro"></textarea>
+          <div class="row"><button class="btn ghost small" id="b-lote" type="button">Importar linhas</button></div>
+        </details>
+
+        <details>
+          <summary>Cópia de segurança da biblioteca</summary>
+          <p class="hint">A biblioteca fica salva neste navegador. Exporte para guardar ou levar para outro computador.</p>
+          <div class="row">
+            <button class="btn ghost small" id="b-exp" type="button">Exportar biblioteca</button>
+            <label class="btn ghost small" for="f-imp" style="display:inline-block">Importar arquivo</label>
+            <input type="file" id="f-imp" accept="application/json,.json" hidden>
+          </div>
+        </details>
+      </section>
+
+      <section class="panel" aria-labelledby="h-bib">
+        <h2 id="h-bib">Biblioteca</h2>
+        <input type="search" id="mq" placeholder="Buscar materiais" aria-label="Buscar materiais">
+        <div id="mat-lista"></div>
+      </section>
+    </div>
   </div>
 </div>
 
 <script>
 "use strict";
 
-/* ---------- Configuração do endpoint no GitHub ---------- */
-// Substitua pela URL do seu Cloudflare Worker após publicar:
+/* ---------- Configuração do endpoint ---------- */
 const WORKER_URL = "https://planejador-tatiana.gabismarketing26.workers.dev";
+const MARCA_INCOMPLETO = "[GERAÇÃO INCOMPLETA]";
 
 const FORMATOS = [
   { id: "reels", nome: "Reels", sub: "Vídeo com teleprompter" },
   { id: "carrossel", nome: "Carrossel", sub: "Psicoeducação e salvamentos" },
-  { id: "card", nome: "Card único", sub: "Frase de impacto" }
+  { id: "card", nome: "Card único", sub: "Frase de impacto" },
+  { id: "story", nome: "Story", sub: "De 1 a 5 telas" }
 ];
 const CTAS = [
   { id: "isca", nome: "Isca digital", sub: "Autoavaliação no link da bio",
@@ -204,6 +302,19 @@ const CTAS = [
   { id: "engaja", nome: "Engajamento", sub: "Pergunta aberta nos comentários",
     texto: "Faça uma pergunta ética e aberta que incentive comentários." }
 ];
+const TIPOS_MAT = ["Foto pessoal", "Foto profissional", "Vídeo", "Portfólio Canva", "Referência visual"];
+
+const IDENTIDADE_PADRAO = [
+  "Paleta: tons suaves e acolhedores (verde-sálvia, bege areia, off-white e um tom de destaque discreto, como terracota claro).",
+  "Tipografia: títulos em fonte serifada elegante; textos em fonte sem serifa, limpa e legível.",
+  "Estilo: minimalista e sereno, bastante espaço em branco, fotos com luz natural, sem excesso de elementos.",
+  "Assinatura: @psi_tatianaferreira discreto no rodapé de cada peça."
+].join("\n");
+
+const SECAO_CANVA = (tamanho, plural, singular) => [
+  "🖌️ PROMPT PARA O CANVA (copie e cole no Canva IA / Magic Design)",
+  "(um único parágrafo corrido, pronto para colar, que descreve: formato " + tamanho + "; a quantidade de " + plural + "; a identidade visual do perfil com as cores, fontes e estilo; o texto exato de cada " + singular + " em ordem; onde entra cada foto ou material sugerido; e o destaque visual de cada " + singular + ")"
+].join("\n");
 
 const MODELO_REELS = [
 "====================================================================",
@@ -249,6 +360,7 @@ const MODELO_REELS = [
 "- Etapa 1 (Corte seco): retirar pausas longas ou respirações excessivas entre os blocos.",
 "- Etapa 2 (Legendas automáticas): estilo limpo, fonte sem serifa, destaque nas palavras-chave da emoção.",
 "- Etapa 3 (Trilha sonora): música instrumental suave com volume baixo (8% a 10%).",
+"{{MATERIAIS}}",
 "===================================================================="
 ].join("\n");
 
@@ -261,6 +373,7 @@ const MODELO_CARROSSEL = [
 "- Objetivo do Post: [breve]",
 "- Tom de Voz: Sereno, acolhedor, sem jargão.",
 "- Quantidade de Slides: 7 a 9",
+"- Formato: 1080 x 1350 px (4:5)",
 "",
 "---",
 "",
@@ -270,7 +383,7 @@ const MODELO_CARROSSEL = [
 "título (até 10 palavras) e subtítulo opcional",
 "",
 "[SLIDES 2 em diante - DESENVOLVIMENTO]",
-"um bloco por slide: identificação, explicação psicanalítica simples, exemplo cotidiano, virada de olhar",
+"um bloco por slide, cada um com seu rótulo [SLIDE N - ...]: identificação, explicação psicanalítica simples, exemplo cotidiano, virada de olhar",
 "",
 "[SLIDE FINAL - CTA]",
 "texto exato da chamada escolhida",
@@ -278,13 +391,17 @@ const MODELO_CARROSSEL = [
 "---",
 "",
 "🎨 3. SUGESTÕES VISUAIS",
-"- Paleta e fonte: tons suaves e acolhedores, fonte sem serifa, destaque na palavra-chave de cada slide.",
+"- Paleta e fonte: conforme a identidade visual do perfil, com destaque na palavra-chave de cada slide.",
 "- Dica de layout: uma dica por tipo de slide.",
 "",
 "---",
 "",
 "💬 4. LEGENDA DO POST PARA O INSTAGRAM",
 "(mesmo padrão do Reels; incentive salvar e compartilhar)",
+"{{MATERIAIS}}",
+"---",
+"",
+SECAO_CANVA("carrossel do Instagram 1080 x 1350 px", "slides", "slide"),
 "===================================================================="
 ].join("\n");
 
@@ -298,14 +415,68 @@ const MODELO_CARD = [
 "- Frase de apoio opcional (até 15 palavras)",
 "- Chamada visual (CTA curta)",
 "",
+"---",
+"",
 "🎨 2. SUGESTÃO VISUAL",
-"- Layout, fonte sem serifa, cor e posição do destaque.",
+"- Layout, fontes, cores (da identidade visual do perfil) e posição do destaque.",
+"",
+"---",
 "",
 "💬 3. LEGENDA DO POST PARA O INSTAGRAM",
 "(mesmo padrão do Reels, mais curta: 1 a 3 parágrafos)",
+"{{MATERIAIS}}",
+"---",
+"",
+SECAO_CANVA("post único do Instagram 1080 x 1350 px", "peças (1 card)", "elemento do card"),
 "===================================================================="
 ].join("\n");
-const MODELOS = { reels: MODELO_REELS, carrossel: MODELO_CARROSSEL, card: MODELO_CARD };
+
+const MODELO_STORY = [
+"====================================================================",
+"DOC: Roteiro - Story - [Nome do Tema]",
+"====================================================================",
+"",
+"📌 1. DIRETRIZES DO STORY",
+"- Objetivo da Sequência: [breve]",
+"- Quantidade de Telas: [de 1 a 5, a que o tema pedir; prefira menos telas com mais força]",
+"- Formato: 1080 x 1920 px (9:16), deixando livres as faixas de 250 px no topo e na base",
+"- Tom de Voz: Sereno, acolhedor, conversa próxima.",
+"",
+"---",
+"",
+"📲 2. TELA A TELA",
+"",
+"[TELA 1 - ABERTURA]",
+"- Texto na tela: (até 15 palavras)",
+"- Recurso interativo: (enquete, caixa de perguntas, quiz ou controle deslizante, quando fizer sentido; senão, \"nenhum\")",
+"- Visual: (fundo, foto ou vídeo curto)",
+"",
+"[TELAS SEGUINTES - DESENVOLVIMENTO]",
+"um bloco por tela, cada um com seu rótulo [TELA N - ...], no mesmo padrão acima",
+"",
+"[TELA FINAL - CTA]",
+"- Texto na tela: chamada escolhida",
+"- Recurso: figurinha de link, quando o objetivo levar a um link; caixa de perguntas ou enquete, quando for engajamento",
+"",
+"---",
+"",
+"🎨 3. SUGESTÕES VISUAIS",
+"- Paleta e fonte conforme a identidade visual do perfil; legibilidade no celular; uma ideia por tela.",
+"{{MATERIAIS}}",
+"---",
+"",
+SECAO_CANVA("story do Instagram 1080 x 1920 px", "telas", "tela"),
+"===================================================================="
+].join("\n");
+const MODELOS = { reels: MODELO_REELS, carrossel: MODELO_CARROSSEL, card: MODELO_CARD, story: MODELO_STORY };
+
+const SECAO_MATERIAIS = [
+"---",
+"",
+"📎 MATERIAIS SUGERIDOS DA BIBLIOTECA",
+"(de 2 a 6 materiais do catálogo que mais combinam com este conteúdo, misturando categorias quando fizer sentido, ex.: viagem + ensaio profissional + família. Uma linha por material, no formato: - [ID] Tipo / Categoria: descrição | link | onde usar (ex.: fundo do slide 1, tela 2, B-roll do bloco 3))",
+""
+].join("\n");
 
 const BASE = [
 "Você é o assistente \"Planejador da Tatiana\", consultor estratégico de conteúdo e roteirista sênior da psicanalista clínica Tatiana Ferreira.",
@@ -320,11 +491,13 @@ const BASE = [
 "- Se o tema tocar em risco (autolesão, suicídio, violência), trate com cuidado extra e termine a legenda orientando a buscar ajuda (CVV 188).",
 "- Estrutura do conteúdo: gancho que nomeia uma vivência reconhecível, identificação, contexto psicanalítico simples (sem jargão sem explicação), CTA.",
 "- Texto falado em frases curtas, com pausas naturais. Todo texto de fala ou de tela deve estar pronto para uso, sem colchetes de preenchimento.",
+"- Sugestões visuais e o prompt do Canva devem seguir a identidade visual do perfil informada abaixo.",
+"- Escreva o documento inteiro, até a última seção e a linha final de sinais de igual. Não pare no meio.",
 "- Responda SOMENTE com o documento, no modelo abaixo, sem comentários antes ou depois."
 ].join("\n");
 
 const $ = (id) => document.getElementById(id);
-const state = { modo: "tema", formato: "reels", cta: "isca", items: [], atualId: null, gerando: false, ctrl: null, store: null, textoSalvo: "" };
+const state = { modo: "tema", formato: "reels", cta: "isca", items: [], atualId: null, gerando: false, ctrl: null, store: null, textoSalvo: "", mats: [] };
 
 function el(tag, props, ...kids) {
   const n = document.createElement(tag);
@@ -339,20 +512,24 @@ function el(tag, props, ...kids) {
 const nomeFormato = (id) => (FORMATOS.find(f => f.id === id) || {}).nome || id;
 const nomeCta = (id) => (CTAS.find(c => c.id === id) || {}).nome || id;
 const fmtData = (iso) => { try { return new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }); } catch (e) { return ""; } };
+const lsGet = (k, d) => { try { const r = localStorage.getItem(k); return r ? JSON.parse(r) : d; } catch (e) { return d; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
 
-/* ---------- Armazenamento local (localStorage / memória) ---------- */
+/* ---------- Armazenamento local ---------- */
 function criarStoreLocal() {
-  let mem = [];
   const KEY = "planejador-tatiana-v1";
-  try { const r = localStorage.getItem(KEY); if (r) mem = JSON.parse(r) || []; } catch (e) {}
-  const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(mem)); } catch (e) {} };
+  let mem = lsGet(KEY, []) || [];
+  const persist = () => lsSet(KEY, mem);
   return {
-    nota: "Histórico guardado localmente neste navegador.",
     async listar() { return mem.slice(); },
     async salvar(it) { const i = mem.findIndex(x => x.id === it.id); if (i >= 0) mem[i] = it; else mem.push(it); persist(); },
     async apagar(id) { mem = mem.filter(x => x.id !== id); persist(); }
   };
 }
+const KEY_MAT = "planejador-tatiana-materiais-v1";
+const KEY_ID = "planejador-tatiana-identidade-v1";
+const KEY_USAR = "planejador-tatiana-usar-materiais";
+const salvarMats = () => lsSet(KEY_MAT, state.mats);
 
 /* ---------- Resumo ---------- */
 function contar(lista, chave) { const m = {}; lista.forEach(i => { m[i[chave]] = (m[i[chave]] || 0) + 1; }); return m; }
@@ -401,17 +578,17 @@ function abrirItem(id) {
   $("doc").value = it.texto; $("tema").value = it.tema;
   state.formato = it.formato; state.cta = it.cta; state.modo = it.modo || "tema";
   renderEscolhas(); renderModo(); atualizarBotoesDoc(); renderLista();
-  $("status").textContent = "Roteiro do histórico aberto.";
+  info("Roteiro do histórico aberto.");
 }
 async function alternarFav(id) {
   const it = state.items.find(x => x.id === id); if (!it) return;
   it.favorito = !it.favorito;
-  try { await state.store.salvar(it); } catch (e) { $("status").textContent = "Não foi possível salvar o favorito."; $("status").className = "status err"; }
+  try { await state.store.salvar(it); } catch (e) { erro("Não foi possível salvar o favorito."); }
   renderLista();
 }
 async function apagarItem(id) {
-  try { await state.store.apagar(id); state.items = state.items.filter(x => x.id !== id); if (state.atualId === id) { state.atualId = null; } }
-  catch (e) { $("status").textContent = "Não foi possível excluir."; $("status").className = "status err"; }
+  try { await state.store.apagar(id); state.items = state.items.filter(x => x.id !== id); if (state.atualId === id) state.atualId = null; }
+  catch (e) { erro("Não foi possível excluir."); }
   renderResumo(); renderLista();
 }
 
@@ -429,83 +606,60 @@ function renderModo() {
   $("tema-hint").textContent = ref ? "Cole o texto do post. Links não são abertos aqui. O roteiro reescreve a ideia na voz da Tatiana, sem copiar o original." : "Escreva uma pauta, uma frase ou uma dúvida de paciente (sem dados que identifiquem a pessoa).";
 }
 function atualizarBotoesDoc() {
-  const tem = $("doc").value.trim().length > 0;
+  const v = $("doc").value, tem = v.trim().length > 0;
   $("b-copiar").disabled = !tem;
-  $("b-tele").hidden = !(tem && /Roteiro - Reels/i.test($("doc").value));
-  $("b-salvar").hidden = !(state.atualId && $("doc").value !== state.textoSalvo);
+  $("b-baixar").disabled = !tem;
+  $("b-tele").hidden = !(tem && /Roteiro - Reels/i.test(v));
+  $("b-canva").hidden = !(tem && /PROMPT PARA O CANVA/i.test(v));
+  $("b-salvar").hidden = !(state.atualId && v !== state.textoSalvo);
 }
 function erro(msg) { $("status").textContent = msg; $("status").className = "status err"; }
 function info(msg) { $("status").textContent = msg; $("status").className = "status"; }
 
-/* ---------- Geração com Claude via Cloudflare Worker ---------- */
+/* ---------- Geração via Cloudflare Worker ---------- */
+function catalogoTexto() {
+  return state.mats.slice(0, 150).map(m => "M" + m.id + " | " + m.tipo + " | " + m.categoria + " | " + m.descricao + " | " + m.link).join("\n");
+}
+function usarMateriais() { return $("usar-mat").checked && state.mats.length > 0; }
 function montarPrompt() {
   const cta = CTAS.find(c => c.id === state.cta), t = $("tema").value.trim();
   const entrada = state.modo === "ref"
     ? "TEXTO DE REFERÊNCIA (de outro perfil). Reescreva a ideia com a voz da Tatiana, sem copiar frases do original:\n" + t
     : "TEMA: " + t;
-  return BASE + "\n\nFORMATO: " + nomeFormato(state.formato) + "\nOBJETIVO/CTA: " + cta.nome + ". " + cta.texto + "\n\n" + entrada +
-    "\n\nMODELO DO DOCUMENTO (siga a estrutura, troque as instruções entre parênteses pelo conteúdo real e dê um nome curto ao tema no título):\n" + MODELOS[state.formato];
+  const comMat = usarMateriais();
+  const modelo = MODELOS[state.formato].replace("{{MATERIAIS}}", comMat ? "\n" + SECAO_MATERIAIS : "");
+  let p = BASE +
+    "\n\nIDENTIDADE VISUAL DO PERFIL:\n" + ($("identidade").value.trim() || IDENTIDADE_PADRAO) +
+    "\n\nFORMATO: " + nomeFormato(state.formato) + "\nOBJETIVO/CTA: " + cta.nome + ". " + cta.texto + "\n\n" + entrada;
+  if (comMat) {
+    p += "\n\nCATÁLOGO DE MATERIAIS DA TATIANA (ID | tipo | categoria | descrição | link). Use SOMENTE itens deste catálogo, copiando ID e link exatamente; não invente links. " +
+      "No prompt do Canva, diga em qual " + (state.formato === "story" ? "tela" : "slide") + " entra cada material sugerido.\n" + catalogoTexto();
+  }
+  p += "\n\nMODELO DO DOCUMENTO (siga a estrutura, troque as instruções entre parênteses pelo conteúdo real e dê um nome curto ao tema no título):\n" + modelo;
+  return p;
 }
 function tituloDoDoc(texto, tema) {
   const m = texto.match(/DOC:\s*Roteiro\s*-\s*[^-\n]+-\s*(.+)/i);
   return (m && m[1].trim()) || tema.slice(0, 80);
 }
 
-async function streamRoteiroClaude(prompt, signal, onChunk) {
-  if (!WORKER_URL || WORKER_URL.includes("SEU-WORKER")) {
-    throw new Error("WORKER_NAO_CONFIGURADO");
-  }
-
-  const res = await fetch(WORKER_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action: "gerar", prompt }),
-    signal
-  });
-
-  if (!res.ok) {
-    const err = new Error("HTTP_" + res.status);
-    err.status = res.status;
-    throw err;
-  }
-
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
+async function chamarWorker(payload, signal) {
+  if (!WORKER_URL || WORKER_URL.includes("SEU-WORKER")) throw new Error("WORKER_NAO_CONFIGURADO");
+  const res = await fetch(WORKER_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload), signal });
+  if (!res.ok) { const err = new Error("HTTP_" + res.status); err.status = res.status; throw err; }
+  return res;
+}
+async function streamRoteiro(prompt, signal, onChunk) {
+  const res = await chamarWorker({ action: "gerar", prompt }, signal);
+  const reader = res.body.getReader(), decoder = new TextDecoder();
   let acumulado = "";
-
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
     acumulado += decoder.decode(value, { stream: true });
     if (onChunk) onChunk(acumulado);
   }
-
   return acumulado;
-}
-
-async function sugerirTemasClaude(prompt) {
-  if (!WORKER_URL || WORKER_URL.includes("SEU-WORKER")) {
-    throw new Error("WORKER_NAO_CONFIGURADO");
-  }
-
-  const res = await fetch(WORKER_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action: "sugerir", prompt })
-  });
-
-  if (!res.ok) {
-    const err = new Error("HTTP_" + res.status);
-    err.status = res.status;
-    throw err;
-  }
-
-  const data = await res.json();
-  const raw = String(data?.text || "").trim();
-  const match = raw.match(/\[[\s\S]*\]/);
-  const jsonStr = match ? match[0] : raw;
-  const parsed = JSON.parse(jsonStr);
-  return Array.isArray(parsed) ? parsed : [];
 }
 
 async function gerar() {
@@ -514,49 +668,35 @@ async function gerar() {
 
   state.gerando = true;
   state.ctrl = new AbortController();
-  $("b-gerar").disabled = true;
-  $("b-parar").hidden = false;
-  info("Gerando o roteiro…");
-  $("doc").value = "";
-  $("doc").readOnly = true;
+  $("b-gerar").disabled = true; $("b-parar").hidden = false;
+  info("Gerando o roteiro… isso pode levar até 1 minuto.");
+  $("doc").value = ""; $("doc").readOnly = true;
   state.atualId = null;
 
   let texto = "";
   try {
-    texto = await streamRoteiroClaude(montarPrompt(), state.ctrl.signal, (parcial) => {
-      texto = parcial;
-      $("doc").value = parcial;
-    });
+    texto = await streamRoteiro(montarPrompt(), state.ctrl.signal, (parcial) => { texto = parcial; $("doc").value = parcial; });
+    const incompleto = texto.includes(MARCA_INCOMPLETO);
+    texto = texto.replace(MARCA_INCOMPLETO, "").trimEnd();
     $("doc").value = texto;
-    if (texto.trim()) {
-      await salvarNovo(texto, tema);
-      info("Roteiro pronto e salvo no histórico.");
-    } else {
-      erro("A resposta veio vazia. Tente novamente.");
-    }
+    if (!texto.trim()) erro("A resposta veio vazia. Tente novamente.");
+    else if (incompleto) erro("O roteiro parou antes do fim, mesmo após novas tentativas (o serviço do Gemini pode estar sobrecarregado ou sem cota no momento). O trecho gerado ficou acima e não foi salvo. Tente gerar de novo em alguns minutos.");
+    else { await salvarNovo(texto, tema); info("Roteiro pronto e salvo no histórico."); }
   } catch (e) {
-    if (state.ctrl.signal.aborted || e?.name === "AbortError") {
-      info("Geração interrompida.");
-    } else if (e?.message === "WORKER_NAO_CONFIGURADO") {
-      erro("Configure a URL do seu Cloudflare Worker no código antes de gerar.");
-    } else if (e?.status === 429) {
-      erro("Muitas solicitações em pouco tempo. Aguarde um instante e tente de novo.");
-    } else {
-      erro("Não foi possível gerar agora. Verifique a conexão ou a chave no Worker.");
-    }
+    if (state.ctrl.signal.aborted || e?.name === "AbortError") info("Geração interrompida.");
+    else if (e?.message === "WORKER_NAO_CONFIGURADO") erro("Configure a URL do seu Cloudflare Worker no código antes de gerar.");
+    else if (e?.status === 429) erro("A cota gratuita do Gemini acabou por agora. Aguarde alguns minutos e tente de novo.");
+    else if (e?.status === 403) erro("Este site não está autorizado no Worker (ALLOWED_ORIGIN).");
+    else erro("Não foi possível gerar agora. Verifique a conexão e tente de novo.");
   } finally {
     state.gerando = false;
-    $("b-gerar").disabled = false;
-    $("b-parar").hidden = true;
-    $("doc").readOnly = false;
-    atualizarBotoesDoc();
-    renderResumo();
-    renderLista();
+    $("b-gerar").disabled = false; $("b-parar").hidden = true; $("doc").readOnly = false;
+    atualizarBotoesDoc(); renderResumo(); renderLista();
   }
 }
 
 async function salvarNovo(texto, tema) {
-  const it = { id: String(Date.now()), criadoEm: new Date().toISOString(), tema: tema, modo: state.modo, formato: state.formato, cta: state.cta, titulo: tituloDoDoc(texto, tema), texto: texto, favorito: false };
+  const it = { id: String(Date.now()), criadoEm: new Date().toISOString(), tema, modo: state.modo, formato: state.formato, cta: state.cta, titulo: tituloDoDoc(texto, tema), texto, favorito: false };
   state.items.push(it); state.atualId = it.id; state.textoSalvo = texto;
   try { await state.store.salvar(it); } catch (e) { erro("O roteiro foi gerado, mas não foi salvo no histórico."); }
 }
@@ -570,85 +710,193 @@ async function salvarAlteracoes() {
 /* ---------- Sugestões de tema ---------- */
 async function sugerir() {
   $("sug-status").textContent = "Pensando em temas…";
-  $("b-sug").disabled = true;
-  $("sug").replaceChildren();
-
+  $("b-sug").disabled = true; $("sug").replaceChildren();
   const recentes = state.items.slice(-10).map(i => i.titulo).join("; ") || "nenhum ainda";
   const p = BASE.split("\nREGRAS OBRIGATÓRIAS")[0] +
     "\nSugira 3 temas de conteúdo para o Instagram, alinhados à missão da marca (emoções, controle, ansiedade, ressignificação, autoconhecimento), diferentes dos já criados: " + recentes +
     '.\nResponda SOMENTE com um array JSON válido de 3 objetos {"titulo": "...", "angulo": "uma linha com o ângulo"}, em português do Brasil, sem markdown.';
-
   try {
-    const arr = await sugerirTemasClaude(p);
-    arr.slice(0, 3).forEach(s => {
-      $("sug").append(
-        el("button", {
-          type: "button",
-          onclick: () => {
-            $("tema").value = String(s.titulo || "") + ". " + String(s.angulo || "");
-            state.modo = "tema";
-            renderModo();
-          }
-        },
-          el("b", null, String(s.titulo || "")),
-          el("span", null, String(s.angulo || ""))
-        )
-      );
+    const res = await chamarWorker({ action: "sugerir", prompt: p });
+    const data = await res.json();
+    const raw = String(data?.text || "").trim(), match = raw.match(/\[[\s\S]*\]/);
+    const arr = JSON.parse(match ? match[0] : raw);
+    (Array.isArray(arr) ? arr : []).slice(0, 3).forEach(s => {
+      $("sug").append(el("button", { type: "button", onclick: () => { $("tema").value = String(s.titulo || "") + ". " + String(s.angulo || ""); state.modo = "tema"; renderModo(); } },
+        el("b", null, String(s.titulo || "")), el("span", null, String(s.angulo || ""))));
     });
-    $("sug-status").textContent = arr.length ? "Clique em uma ideia para usar como tema." : "Não vieram sugestões. Tente de novo.";
+    $("sug-status").textContent = Array.isArray(arr) && arr.length ? "Clique em uma ideia para usar como tema." : "Não vieram sugestões. Tente de novo.";
   } catch (e) {
-    $("sug-status").textContent = e?.message === "WORKER_NAO_CONFIGURADO"
-      ? "Configure a URL do Worker para usar as sugestões."
-      : "Não foi possível sugerir agora.";
-  } finally {
-    $("b-sug").disabled = false;
-  }
+    $("sug-status").textContent = e?.status === 429 ? "A cota gratuita acabou por agora. Tente em alguns minutos." : "Não foi possível sugerir agora.";
+  } finally { $("b-sug").disabled = false; }
 }
 
-/* ---------- Copiar ---------- */
+/* ---------- Copiar e baixar ---------- */
 async function copiar(texto, ok) {
   try { await navigator.clipboard.writeText(texto); info(ok); }
   catch (e) { $("doc").focus(); $("doc").select(); info("Seu navegador bloqueou a cópia automática. O texto está selecionado, use Ctrl+C."); }
 }
-function teleprompter(texto) {
-  const linhas = texto.split("\n"), ini = linhas.findIndex(l => /ROTEIRO CENA A CENA/i.test(l));
+function secao(texto, inicioRe, pularRotulos) {
+  const linhas = texto.split("\n"), ini = linhas.findIndex(l => inicioRe.test(l));
   if (ini < 0) return "";
   const out = [];
   for (let i = ini + 1; i < linhas.length; i++) {
-    if (/^\s*---/.test(linhas[i])) break;
-    if (/^\s*\[BLOCO/i.test(linhas[i])) continue;
+    if (/^\s*(---|====)/.test(linhas[i])) break;
+    if (pularRotulos && /^\s*\[BLOCO/i.test(linhas[i])) continue;
     out.push(linhas[i]);
   }
   return out.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
+const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const linkify = (s) => esc(s).replace(/(https?:\/\/[^\s|<]+)/g, '<a href="$1">$1</a>');
+function baixarDoc() {
+  const texto = $("doc").value; if (!texto.trim()) return;
+  const titulo = tituloDoDoc(texto, $("tema").value.trim() || "roteiro");
+  const corpo = texto.split("\n").map(l => {
+    const t = l.trim();
+    if (/^=+$/.test(t)) return "";
+    if (/^-{3,}$/.test(t)) return "<hr>";
+    if (/^DOC:/i.test(t)) return "<h1>" + esc(t.replace(/^DOC:\s*/i, "")) + "</h1>";
+    if (/^\p{Extended_Pictographic}/u.test(t)) return "<h2>" + esc(t) + "</h2>";
+    if (/^\[[^\]]+\]$/.test(t)) return "<h3>" + esc(t.slice(1, -1)) + "</h3>";
+    if (!t) return "";
+    return "<p>" + linkify(l) + "</p>";
+  }).join("\n");
+  const html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">' +
+    '<head><meta charset="utf-8"><title>' + esc(titulo) + '</title><style>' +
+    'body{font-family:Calibri,Arial,sans-serif;font-size:12pt;line-height:1.4}h1{font-size:18pt;color:#2c6b66}h2{font-size:13pt;color:#2c6b66;margin-top:14pt}h3{font-size:11.5pt;color:#7b4a6d;margin-top:10pt}p{margin:0 0 6pt}hr{border:0;border-top:1px solid #ccc}' +
+    '</style></head><body>' + corpo + '</body></html>';
+  const blob = new Blob(["﻿", html], { type: "application/msword" });
+  const mf = texto.match(/DOC:\s*Roteiro\s*-\s*([^-\n]+?)\s*-/i);
+  const nomeArq = ("Roteiro - " + (mf ? mf[1] : nomeFormato(state.formato)) + " - " + titulo).replace(/[\\/:*?"<>|]+/g, "").slice(0, 120) + ".doc";
+  const a = el("a", { href: URL.createObjectURL(blob), download: nomeArq });
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  info("Roteiro baixado: " + nomeArq);
+}
+
+/* ---------- Materiais ---------- */
+function categorias() { return [...new Set(state.mats.map(m => m.categoria).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR")); }
+function proxId() { return state.mats.reduce((m, x) => Math.max(m, Number(x.id) || 0), 0) + 1; }
+function normTipo(t) { const s = String(t || "").trim().toLowerCase(); return TIPOS_MAT.find(x => x.toLowerCase() === s) || TIPOS_MAT.find(x => s && x.toLowerCase().startsWith(s.slice(0, 5))) || "Referência visual"; }
+function linkValido(u) { try { const x = new URL(u); return x.protocol === "https:" || x.protocol === "http:"; } catch (e) { return false; } }
+function addMaterial(tipo, categoria, link, descricao) {
+  state.mats.push({ id: String(proxId()), tipo: normTipo(tipo), categoria: categoria.trim() || "Geral", link: link.trim(), descricao: descricao.trim() || "(sem descrição)", criadoEm: new Date().toISOString() });
+}
+function matStatus(msg, err) { $("mat-status").textContent = msg; $("mat-status").className = "status" + (err ? " err" : ""); }
+function renderMateriais() {
+  $("dl-cats").replaceChildren(...categorias().map(c => el("option", { value: c })));
+  $("mat-hint").textContent = state.mats.length
+    ? state.mats.length + " materiais na biblioteca. A IA escolhe os que combinam com cada roteiro."
+    : "A biblioteca ainda está vazia. Cadastre materiais na aba Materiais de produção.";
+  $("usar-mat").disabled = !state.mats.length;
+  const q = $("mq").value.trim().toLowerCase();
+  const box = $("mat-lista"); box.replaceChildren();
+  const lista = state.mats.filter(m => !q || (m.tipo + " " + m.categoria + " " + m.descricao + " " + m.link).toLowerCase().includes(q));
+  if (!lista.length) { box.append(el("div", { class: "empty" }, state.mats.length ? "Nenhum material com essa busca." : "Nenhum material ainda. Comece pelas suas fotos profissionais favoritas.")); return; }
+  TIPOS_MAT.forEach(tipo => {
+    const doTipo = lista.filter(m => m.tipo === tipo); if (!doTipo.length) return;
+    const g = el("div", { class: "mat-group" }, el("h3", null, tipo + " (" + doTipo.length + ")"));
+    [...new Set(doTipo.map(m => m.categoria))].sort((a, b) => a.localeCompare(b, "pt-BR")).forEach(cat => {
+      g.append(el("div", { class: "mat-cat" }, cat));
+      doTipo.filter(m => m.categoria === cat).forEach(m => {
+        let confirma = false;
+        const del = el("button", { class: "icon", type: "button", onclick: () => {
+          if (!confirma) { confirma = true; del.textContent = "Confirmar"; setTimeout(() => { confirma = false; del.textContent = "Excluir"; }, 3000); }
+          else { state.mats = state.mats.filter(x => x.id !== m.id); salvarMats(); renderMateriais(); }
+        } }, "Excluir");
+        g.append(el("div", { class: "mat" },
+          el("div", null, el("div", { class: "d" }, "M" + m.id + " · " + m.descricao), el("a", { href: m.link, target: "_blank", rel: "noopener" }, m.link)),
+          del));
+      });
+    });
+    box.append(g);
+  });
+}
+function adicionarUm() {
+  const link = $("mt-link").value.trim();
+  if (!linkValido(link)) { matStatus("Cole um link completo, começando com https://", true); return; }
+  if (!$("mt-cat").value.trim()) { matStatus("Escolha ou escreva uma categoria.", true); return; }
+  addMaterial($("mt-tipo").value, $("mt-cat").value, link, $("mt-desc").value);
+  salvarMats(); renderMateriais();
+  $("mt-link").value = ""; $("mt-desc").value = "";
+  matStatus("Material adicionado.");
+}
+function importarLote() {
+  const linhas = $("mt-lote").value.split("\n").map(l => l.trim()).filter(Boolean);
+  let ok = 0, falhas = 0;
+  linhas.forEach(l => {
+    const p = l.split("|").map(s => s.trim());
+    const link = p.find(linkValido);
+    if (!link) { falhas++; return; }
+    const i = p.indexOf(link);
+    addMaterial(p[0], i > 1 ? p[1] : "Geral", link, p.slice(i + 1).join(" "));
+    ok++;
+  });
+  salvarMats(); renderMateriais();
+  if (ok) $("mt-lote").value = "";
+  matStatus(ok + " materiais importados" + (falhas ? "; " + falhas + " linhas sem link válido foram ignoradas." : "."), !ok);
+}
+function exportarMats() {
+  const blob = new Blob([JSON.stringify({ versao: 1, materiais: state.mats }, null, 2)], { type: "application/json" });
+  const a = el("a", { href: URL.createObjectURL(blob), download: "biblioteca-materiais-tatiana.json" });
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+async function importarMats(ev) {
+  const f = ev.target.files && ev.target.files[0]; if (!f) return;
+  try {
+    const data = JSON.parse(await f.text());
+    const lista = Array.isArray(data) ? data : data.materiais;
+    if (!Array.isArray(lista)) throw new Error("formato");
+    let n = 0;
+    lista.forEach(m => { if (m && linkValido(m.link) && !state.mats.some(x => x.link === m.link)) { addMaterial(m.tipo, m.categoria || "Geral", m.link, m.descricao || ""); n++; } });
+    salvarMats(); renderMateriais();
+    matStatus(n + " materiais importados (links repetidos foram ignorados).");
+  } catch (e) { matStatus("Não consegui ler esse arquivo. Use um arquivo exportado por esta ferramenta.", true); }
+  ev.target.value = "";
+}
+
+/* ---------- Navegação ---------- */
+function mostrar(qual) {
+  const mat = qual === "mat";
+  $("view-rot").hidden = mat; $("view-mat").hidden = !mat;
+  $("nav-rot").setAttribute("aria-selected", String(!mat)); $("nav-mat").setAttribute("aria-selected", String(mat));
+}
 
 /* ---------- Início ---------- */
 function ligar() {
+  $("nav-rot").addEventListener("click", () => mostrar("rot"));
+  $("nav-mat").addEventListener("click", () => mostrar("mat"));
   $("m-tema").addEventListener("click", () => { state.modo = "tema"; renderModo(); });
   $("m-ref").addEventListener("click", () => { state.modo = "ref"; renderModo(); });
   $("b-gerar").addEventListener("click", gerar);
   $("b-parar").addEventListener("click", () => { if (state.ctrl) state.ctrl.abort(); });
   $("b-sug").addEventListener("click", sugerir);
   $("b-copiar").addEventListener("click", () => copiar($("doc").value, "Documento copiado."));
-  $("b-tele").addEventListener("click", () => { const t = teleprompter($("doc").value); if (t) copiar(t, "Texto do teleprompter copiado."); else erro("Não encontrei a seção do teleprompter."); });
+  $("b-baixar").addEventListener("click", baixarDoc);
+  $("b-tele").addEventListener("click", () => { const t = secao($("doc").value, /ROTEIRO CENA A CENA/i, true); if (t) copiar(t, "Texto do teleprompter copiado."); else erro("Não encontrei a seção do teleprompter."); });
+  $("b-canva").addEventListener("click", () => { const t = secao($("doc").value, /PROMPT PARA O CANVA/i, false); if (t) copiar(t, "Prompt do Canva copiado. Cole no Canva IA."); else erro("Não encontrei o prompt do Canva."); });
   $("b-salvar").addEventListener("click", salvarAlteracoes);
   $("doc").addEventListener("input", atualizarBotoesDoc);
   ["q", "f-formato", "f-cta", "f-fav"].forEach(id => $(id).addEventListener("input", renderLista));
+  $("identidade").addEventListener("input", () => lsSet(KEY_ID, $("identidade").value));
+  $("usar-mat").addEventListener("change", () => lsSet(KEY_USAR, $("usar-mat").checked));
+  $("b-addmat").addEventListener("click", adicionarUm);
+  $("b-lote").addEventListener("click", importarLote);
+  $("b-exp").addEventListener("click", exportarMats);
+  $("f-imp").addEventListener("change", importarMats);
+  $("mq").addEventListener("input", renderMateriais);
 }
 async function iniciar() {
   popularFiltros();
-  renderEscolhas();
-  renderModo();
-  ligar();
+  TIPOS_MAT.forEach(t => $("mt-tipo").append(el("option", { value: t }, t)));
+  $("identidade").value = lsGet(KEY_ID, null) || IDENTIDADE_PADRAO;
+  state.mats = lsGet(KEY_MAT, []) || [];
+  $("usar-mat").checked = lsGet(KEY_USAR, true) !== false;
+  renderEscolhas(); renderModo(); ligar(); renderMateriais();
   state.store = criarStoreLocal();
-  $("store-note").textContent = state.store.nota;
-  try {
-    state.items = await state.store.listar();
-  } catch (e) {
-    state.items = [];
-  }
-  renderResumo();
-  renderLista();
+  try { state.items = await state.store.listar(); } catch (e) { state.items = []; }
+  renderResumo(); renderLista();
 }
 iniciar();
 </script>
