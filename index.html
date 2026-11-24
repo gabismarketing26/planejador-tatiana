@@ -46,6 +46,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 16px; }
 header h1 { font-size: 28px; }
 header p { margin: 0; color: var(--muted); max-width: 60ch; }
+.sync { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); flex-wrap: wrap; }
+#sync-status.ok { color: var(--accent); font-weight: 600; }
+#sync-status.err { color: #b3261e; }
 .nav { display: flex; gap: 8px; border-bottom: 1px solid var(--line); }
 .nav button { border: 0; background: none; padding: 10px 14px; cursor: pointer; font-weight: 600; color: var(--muted); border-bottom: 3px solid transparent; margin-bottom: -1px; }
 .nav button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
@@ -136,6 +139,7 @@ details[open] summary { margin-bottom: 8px; }
   <header>
     <h1>Planejador da Tatiana</h1>
     <p>Roteiros de Reels, carrosséis, cards e stories para o Instagram, na voz da Tatiana, com histórico e biblioteca de materiais.</p>
+    <div class="sync"><span id="sync-status">Histórico só neste navegador</span><button class="btn small" id="b-sync" type="button">Entrar com Google</button></div>
   </header>
 
   <nav class="nav" role="tablist" aria-label="Seções">
@@ -212,7 +216,7 @@ details[open] summary { margin-bottom: 8px; }
 
       <section class="panel" aria-labelledby="h-hist">
         <h2 id="h-hist">Histórico</h2>
-        <p class="hint">Histórico guardado localmente neste navegador.</p>
+        <p class="hint" id="hist-hint">Entre com o Google (no topo) para compartilhar o histórico e a biblioteca entre a Tatiana e a consultoria.</p>
         <div class="filters">
           <input type="search" id="q" class="full" placeholder="Buscar no histórico" aria-label="Buscar no histórico">
           <select id="f-formato" aria-label="Filtrar por formato"><option value="">Todos os formatos</option></select>
@@ -303,7 +307,7 @@ const WORKER_URL = "https://planejador-tatiana.gabismarketing26.workers.dev";
 const MARCA_INCOMPLETO = "[GERAÇÃO INCOMPLETA]";
 /* ---------- Google Drive (login Google da Tatiana) ---------- */
 const GOOGLE_CLIENT_ID = "636516786951-cdmfjr3go8hi51bi7fvvq5nvrs5p3jt0.apps.googleusercontent.com";   // ID do cliente OAuth do Google Cloud (público; não é segredo)
-const DRIVE_ESCOPO = "https://www.googleapis.com/auth/drive.file"; // só enxerga o que o Planejador criou
+const DRIVE_ESCOPO = "openid email https://www.googleapis.com/auth/drive.file"; // e-mail (para o histórico) + só o que o Planejador criou no Drive
 const PASTA_RAIZ = "Materiais de produção";
 
 const FORMATOS = [
@@ -543,18 +547,22 @@ function criarStoreLocal() {
   return {
     async listar() { return mem.slice(); },
     async salvar(it) { const i = mem.findIndex(x => x.id === it.id); if (i >= 0) mem[i] = it; else mem.push(it); persist(); },
-    async apagar(id) { mem = mem.filter(x => x.id !== id); persist(); }
+    async apagar(id) { mem = mem.filter(x => x.id !== id); persist(); },
+    async todos(lista) { mem = lista.slice(); persist(); }
   };
 }
 const KEY_MAT = "planejador-tatiana-materiais-v1";
 const KEY_ID = "planejador-tatiana-identidade-v1";
 const KEY_USAR = "planejador-tatiana-usar-materiais";
-const salvarMats = () => lsSet(KEY_MAT, state.mats);
+const pendentesMat = [];
+const salvarMats = () => { lsSet(KEY_MAT, state.mats); if (pendentesMat.length) publicar([], pendentesMat.splice(0)); };
+const vis = () => state.items.filter(i => !i.apagado);
+const matsVis = () => state.mats.filter(m => !m.apagado);
 
 /* ---------- Resumo ---------- */
 function contar(lista, chave) { const m = {}; lista.forEach(i => { m[i[chave]] = (m[i[chave]] || 0) + 1; }); return m; }
 function renderResumo() {
-  const its = state.items;
+  const its = vis();
   $("t-total").textContent = String(its.length);
   const limite = Date.now() - 30 * 864e5;
   $("t-mes").textContent = String(its.filter(i => new Date(i.criadoEm).getTime() >= limite).length);
@@ -571,12 +579,12 @@ function renderResumo() {
 /* ---------- Histórico ---------- */
 function renderLista() {
   const q = $("q").value.trim().toLowerCase(), ff = $("f-formato").value, fc = $("f-cta").value, fav = $("f-fav").checked;
-  const its = state.items.filter(i =>
+  const its = vis().filter(i =>
     (!ff || i.formato === ff) && (!fc || i.cta === fc) && (!fav || i.favorito) &&
     (!q || (i.titulo + " " + i.tema + " " + i.texto).toLowerCase().includes(q)))
     .sort((a, b) => new Date(b.criadoEm) - new Date(a.criadoEm));
   const box = $("lista"); box.replaceChildren();
-  if (!its.length) { box.append(el("div", { class: "empty" }, state.items.length ? "Nenhum roteiro com esses filtros." : "Nenhum roteiro criado ainda. O primeiro aparece aqui.")); return; }
+  if (!its.length) { box.append(el("div", { class: "empty" }, vis().length ? "Nenhum roteiro com esses filtros." : "Nenhum roteiro criado ainda. O primeiro aparece aqui.")); return; }
   its.forEach(i => {
     const abrir = el("button", { class: "t", type: "button", onclick: () => abrirItem(i.id) }, i.titulo || i.tema);
     const fb = el("button", { class: "icon", type: "button", "aria-pressed": String(!!i.favorito), title: "Favoritar", onclick: () => alternarFav(i.id) }, i.favorito ? "★ Favorito" : "☆ Favoritar");
@@ -585,7 +593,7 @@ function renderLista() {
     box.append(el("div", { class: "item" + (i.id === state.atualId ? " active" : "") },
       abrir,
       el("div", { class: "chips" }, el("span", { class: "chip f" }, nomeFormato(i.formato)), el("span", { class: "chip" }, nomeCta(i.cta))),
-      el("div", { class: "meta" }, el("span", null, fmtData(i.criadoEm)), el("span", { class: "acts" }, fb, del))));
+      el("div", { class: "meta" }, el("span", null, fmtData(i.criadoEm) + ((i.autor || i.alteradoPor) ? " · por " + String(i.autor || i.alteradoPor).split("@")[0] : "")), el("span", { class: "acts" }, fb, del))));
   });
 }
 function popularFiltros() {
@@ -602,12 +610,13 @@ function abrirItem(id) {
 }
 async function alternarFav(id) {
   const it = state.items.find(x => x.id === id); if (!it) return;
-  it.favorito = !it.favorito;
+  it.favorito = !it.favorito; tocar(it);
+  publicar([it], []);
   try { await state.store.salvar(it); } catch (e) { erro("Não foi possível salvar o favorito."); }
   renderLista();
 }
 async function apagarItem(id) {
-  try { await state.store.apagar(id); state.items = state.items.filter(x => x.id !== id); if (state.atualId === id) state.atualId = null; }
+  try { const it = state.items.find(x => x.id === id); if (it) { it.apagado = true; it.texto = ""; tocar(it); await state.store.salvar(it); publicar([it], []); } if (state.atualId === id) state.atualId = null; }
   catch (e) { erro("Não foi possível excluir."); }
   renderResumo(); renderLista();
 }
@@ -638,9 +647,9 @@ function info(msg) { $("status").textContent = msg; $("status").className = "sta
 
 /* ---------- Geração via Cloudflare Worker ---------- */
 function catalogoTexto() {
-  return state.mats.slice(0, 150).map(m => "M" + m.id + " | " + m.tipo + " | " + m.categoria + " | " + m.descricao + " | " + m.link).join("\n");
+  return matsVis().slice(0, 150).map(m => "M" + m.id + " | " + m.tipo + " | " + m.categoria + " | " + m.descricao + " | " + m.link).join("\n");
 }
-function usarMateriais() { return $("usar-mat").checked && state.mats.length > 0; }
+function usarMateriais() { return $("usar-mat").checked && matsVis().length > 0; }
 function montarPrompt() {
   const cta = CTAS.find(c => c.id === state.cta), t = $("tema").value.trim();
   const entrada = state.modo === "ref"
@@ -717,12 +726,14 @@ async function gerar() {
 
 async function salvarNovo(texto, tema) {
   const it = { id: String(Date.now()), criadoEm: new Date().toISOString(), tema, modo: state.modo, formato: state.formato, cta: state.cta, titulo: tituloDoDoc(texto, tema), texto, favorito: false };
-  state.items.push(it); state.atualId = it.id; state.textoSalvo = texto;
+  tocar(it); state.items.push(it); state.atualId = it.id; state.textoSalvo = texto;
+  publicar([it], []);
   try { await state.store.salvar(it); } catch (e) { erro("O roteiro foi gerado, mas não foi salvo no histórico."); }
 }
 async function salvarAlteracoes() {
   const it = state.items.find(x => x.id === state.atualId); if (!it) return;
-  it.texto = $("doc").value; it.titulo = tituloDoDoc(it.texto, it.tema); state.textoSalvo = it.texto;
+  it.texto = $("doc").value; it.titulo = tituloDoDoc(it.texto, it.tema); state.textoSalvo = it.texto; tocar(it);
+  publicar([it], []);
   try { await state.store.salvar(it); info("Alterações salvas."); } catch (e) { erro("Não foi possível salvar as alterações."); }
   atualizarBotoesDoc(); renderLista();
 }
@@ -731,7 +742,7 @@ async function salvarAlteracoes() {
 async function sugerir() {
   $("sug-status").textContent = "Pensando em temas…";
   $("b-sug").disabled = true; $("sug").replaceChildren();
-  const recentes = state.items.slice(-10).map(i => i.titulo).join("; ") || "nenhum ainda";
+  const recentes = vis().slice(-10).map(i => i.titulo).join("; ") || "nenhum ainda";
   const p = BASE.split("\nREGRAS OBRIGATÓRIAS")[0] +
     "\nSugira 3 temas de conteúdo para o Instagram, alinhados à missão da marca (emoções, controle, ansiedade, ressignificação, autoconhecimento), diferentes dos já criados: " + recentes +
     '.\nResponda SOMENTE com um array JSON válido de 3 objetos {"titulo": "...", "angulo": "uma linha com o ângulo"}, em português do Brasil, sem markdown.';
@@ -795,24 +806,25 @@ function baixarDoc() {
 }
 
 /* ---------- Materiais ---------- */
-function categorias() { return [...new Set(state.mats.map(m => m.categoria).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR")); }
-function proxId() { return state.mats.reduce((m, x) => Math.max(m, Number(x.id) || 0), 0) + 1; }
+function categorias() { return [...new Set(matsVis().map(m => m.categoria).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR")); }
+function proxId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 5); }
 function normTipo(t) { const s = String(t || "").trim().toLowerCase(); return TIPOS_MAT.find(x => x.toLowerCase() === s) || TIPOS_MAT.find(x => s && x.toLowerCase().startsWith(s.slice(0, 5))) || "Referência visual"; }
 function linkValido(u) { try { const x = new URL(u); return x.protocol === "https:" || x.protocol === "http:"; } catch (e) { return false; } }
 function addMaterial(tipo, categoria, link, descricao) {
-  state.mats.push({ id: String(proxId()), tipo: normTipo(tipo), categoria: categoria.trim() || "Geral", link: link.trim(), descricao: descricao.trim() || "(sem descrição)", criadoEm: new Date().toISOString() });
+  const m = { id: String(proxId()), tipo: normTipo(tipo), categoria: categoria.trim() || "Geral", link: link.trim(), descricao: descricao.trim() || "(sem descrição)", criadoEm: new Date().toISOString() };
+  tocar(m); state.mats.push(m); pendentesMat.push(m);
 }
 function matStatus(msg, err) { $("mat-status").textContent = msg; $("mat-status").className = "status" + (err ? " err" : ""); }
 function renderMateriais() {
   $("dl-cats").replaceChildren(...categorias().map(c => el("option", { value: c })));
-  $("mat-hint").textContent = state.mats.length
-    ? state.mats.length + " materiais na biblioteca. A IA escolhe os que combinam com cada roteiro."
+  $("mat-hint").textContent = matsVis().length
+    ? matsVis().length + " materiais na biblioteca. A IA escolhe os que combinam com cada roteiro."
     : "A biblioteca ainda está vazia. Cadastre materiais na aba Materiais de produção.";
-  $("usar-mat").disabled = !state.mats.length;
+  $("usar-mat").disabled = !matsVis().length;
   const q = $("mq").value.trim().toLowerCase();
   const box = $("mat-lista"); box.replaceChildren();
-  const lista = state.mats.filter(m => !q || (m.tipo + " " + m.categoria + " " + m.descricao + " " + m.link).toLowerCase().includes(q));
-  if (!lista.length) { box.append(el("div", { class: "empty" }, state.mats.length ? "Nenhum material com essa busca." : "Nenhum material ainda. Comece pelas suas fotos profissionais favoritas.")); return; }
+  const lista = matsVis().filter(m => !q || (m.tipo + " " + m.categoria + " " + m.descricao + " " + m.link).toLowerCase().includes(q));
+  if (!lista.length) { box.append(el("div", { class: "empty" }, matsVis().length ? "Nenhum material com essa busca." : "Nenhum material ainda. Comece pelas suas fotos profissionais favoritas.")); return; }
   TIPOS_MAT.forEach(tipo => {
     const doTipo = lista.filter(m => m.tipo === tipo); if (!doTipo.length) return;
     const g = el("div", { class: "mat-group" }, el("h3", null, tipo + " (" + doTipo.length + ")"));
@@ -822,7 +834,7 @@ function renderMateriais() {
         let confirma = false;
         const del = el("button", { class: "icon", type: "button", onclick: () => {
           if (!confirma) { confirma = true; del.textContent = "Confirmar"; setTimeout(() => { confirma = false; del.textContent = "Excluir"; }, 3000); }
-          else { state.mats = state.mats.filter(x => x.id !== m.id); salvarMats(); renderMateriais(); }
+          else { m.apagado = true; tocar(m); salvarMats(); renderMateriais(); publicar([], [m]); }
         } }, "Excluir");
         g.append(el("div", { class: "mat" },
           el("div", null, el("div", { class: "d" }, "M" + m.id + " · " + m.descricao), el("a", { href: m.link, target: "_blank", rel: "noopener" }, m.link)),
@@ -857,7 +869,7 @@ function importarLote() {
   matStatus(ok + " materiais importados" + (falhas ? "; " + falhas + " linhas sem link válido foram ignoradas." : "."), !ok);
 }
 function exportarMats() {
-  const blob = new Blob([JSON.stringify({ versao: 1, materiais: state.mats }, null, 2)], { type: "application/json" });
+  const blob = new Blob([JSON.stringify({ versao: 1, materiais: matsVis() }, null, 2)], { type: "application/json" });
   const a = el("a", { href: URL.createObjectURL(blob), download: "biblioteca-materiais-tatiana.json" });
   document.body.append(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 4000);
@@ -869,7 +881,7 @@ async function importarMats(ev) {
     const lista = Array.isArray(data) ? data : data.materiais;
     if (!Array.isArray(lista)) throw new Error("formato");
     let n = 0;
-    lista.forEach(m => { if (m && linkValido(m.link) && !state.mats.some(x => x.link === m.link)) { addMaterial(m.tipo, m.categoria || "Geral", m.link, m.descricao || ""); n++; } });
+    lista.forEach(m => { if (m && linkValido(m.link) && !matsVis().some(x => x.link === m.link)) { addMaterial(m.tipo, m.categoria || "Geral", m.link, m.descricao || ""); n++; } });
     salvarMats(); renderMateriais();
     matStatus(n + " materiais importados (links repetidos foram ignorados).");
   } catch (e) { matStatus("Não consegui ler esse arquivo. Use um arquivo exportado por esta ferramenta.", true); }
@@ -995,6 +1007,77 @@ async function enviarParaDrive() {
   } finally { btn.disabled = false; }
 }
 
+/* ---------- Histórico compartilhado (Worker + login Google) ---------- */
+const sync = { email: "", ultimo: 0, rodando: false };
+function tocar(obj) {
+  obj.atualizadoEm = new Date().toISOString();
+  if (sync.email) { obj.autor = obj.autor || sync.email; obj.alteradoPor = sync.email; }
+}
+const tokenValido = () => !!(drive.token && Date.now() < drive.expira - 60000);
+function syncStatus(msg, tipo) { $("sync-status").textContent = msg; $("sync-status").className = tipo || ""; }
+async function workerAuth(payload) {
+  const res = await fetch(WORKER_URL, { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + drive.token }, body: JSON.stringify(payload) });
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 401) { drive.token = null; throw Object.assign(new Error(data.error || "Entre de novo com o Google."), { status: 401 }); }
+  if (!res.ok) throw Object.assign(new Error(data.error || ("Erro " + res.status)), { status: res.status });
+  return data;
+}
+// Envia alterações na hora, se houver login; se não, elas sobem na próxima sincronização.
+function publicar(roteiros, materiais) {
+  if (!tokenValido() || (!roteiros.length && !materiais.length)) return;
+  workerAuth({ action: "sync_put", roteiros, materiais })
+    .then(() => syncStatus("Sincronizado como " + sync.email.split("@")[0] + " · " + fmtHora(), "ok"))
+    .catch(e => syncStatus(e.status === 401 ? "Login expirado: clique em Entrar com Google" : "Alterações pendentes: " + e.message, "err"));
+}
+const fmtHora = () => new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+function mesclar(local, remoto) {
+  const porId = new Map(local.map(x => [x.id, x]));
+  const enviar = [];
+  const remotoIds = new Set();
+  for (const r of remoto) {
+    remotoIds.add(r.id);
+    const l = porId.get(r.id);
+    if (!l || String(r.atualizadoEm || "") > String(l.atualizadoEm || "")) porId.set(r.id, r);
+    else if (String(l.atualizadoEm || "") > String(r.atualizadoEm || "")) enviar.push(l);
+  }
+  for (const l of local) if (!remotoIds.has(l.id)) enviar.push(l);
+  return { lista: [...porId.values()], enviar };
+}
+async function sincronizarAgora(silencioso) {
+  if (sync.rodando) return;
+  if (!tokenValido()) { if (!silencioso) syncStatus("Entre com o Google para sincronizar", ""); return; }
+  sync.rodando = true; $("b-sync").disabled = true;
+  try {
+    syncStatus("Sincronizando…", "");
+    const d = await workerAuth({ action: "sync_get" });
+    sync.email = d.usuario || sync.email;
+    const r = mesclar(state.items, d.roteiros || []), m = mesclar(state.mats, d.materiais || []);
+    state.items = r.lista; state.mats = m.lista;
+    await state.store.todos(state.items); lsSet(KEY_MAT, state.mats);
+    [...r.enviar, ...m.enviar].forEach(x => { if (!x.autor) x.autor = sync.email; });
+    if (r.enviar.length || m.enviar.length) {
+      for (let i = 0; i < Math.max(r.enviar.length, m.enviar.length); i += 100)
+        await workerAuth({ action: "sync_put", roteiros: r.enviar.slice(i, i + 100), materiais: m.enviar.slice(i, i + 100) });
+    }
+    sync.ultimo = Date.now();
+    syncStatus("Sincronizado como " + sync.email.split("@")[0] + " · " + fmtHora(), "ok");
+    $("b-sync").textContent = "Sincronizar agora";
+    $("hist-hint").textContent = "Histórico compartilhado: aparece aqui o que a Tatiana e a consultoria criarem.";
+    renderResumo(); renderLista(); renderMateriais();
+  } catch (e) {
+    syncStatus(e.status === 403 ? "Este e-mail não tem acesso ao histórico compartilhado" : (e.status === 401 ? "Login expirado: clique em Entrar com Google" : "Não foi possível sincronizar: " + e.message), "err");
+    if (e.status === 401) $("b-sync").textContent = "Entrar com Google";
+  } finally { sync.rodando = false; $("b-sync").disabled = false; }
+}
+function entrarESincronizar() {
+  if (!GOOGLE_CLIENT_ID) { syncStatus("Login do Google não configurado", "err"); return; }
+  if (tokenValido()) { sincronizarAgora(); return; }
+  pedirToken().then(() => sincronizarAgora()).catch(e => {
+    if (e.message === "GOOGLE_NAO_CARREGADO") { carregarGoogle(); syncStatus("Carregando o login do Google; clique de novo em instantes", "err"); }
+    else syncStatus("Login cancelado ou bloqueado (libere pop-ups deste site)", "err");
+  });
+}
+
 /* ---------- Navegação ---------- */
 function mostrar(qual) {
   const mat = qual === "mat";
@@ -1022,6 +1105,8 @@ function ligar() {
   $("usar-mat").addEventListener("change", () => lsSet(KEY_USAR, $("usar-mat").checked));
   $("b-addmat").addEventListener("click", adicionarUm);
   $("b-upload").addEventListener("click", enviarParaDrive);
+  $("b-sync").addEventListener("click", entrarESincronizar);
+  window.addEventListener("focus", () => { if (tokenValido() && Date.now() - sync.ultimo > 30000) sincronizarAgora(true); });
   $("b-lote").addEventListener("click", importarLote);
   $("b-exp").addEventListener("click", exportarMats);
   $("f-imp").addEventListener("change", importarMats);
@@ -1039,6 +1124,8 @@ async function iniciar() {
   if (raiz) { $("link-raiz").href = "https://drive.google.com/drive/folders/" + raiz; $("link-raiz").hidden = false; }
   state.store = criarStoreLocal();
   try { state.items = await state.store.listar(); } catch (e) { state.items = []; }
+  state.items.forEach(i => { i.atualizadoEm = i.atualizadoEm || i.criadoEm; });
+  state.mats.forEach(m => { m.atualizadoEm = m.atualizadoEm || m.criadoEm || new Date(0).toISOString(); });
   renderResumo(); renderLista();
 }
 iniciar();
