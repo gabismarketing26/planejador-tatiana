@@ -98,7 +98,13 @@ details[open] summary { margin-bottom: 8px; }
 .suggest { display: flex; flex-direction: column; gap: 8px; }
 .suggest button { text-align: left; border: 1px dashed var(--accent); background: var(--accent-soft); border-radius: 8px; padding: 8px 12px; cursor: pointer; }
 .suggest button b { display: block; }
-.suggest button span { color: var(--muted); font-size: 13px; }
+.suggest button span { color: var(--muted); font-size: 13px; display: block; }
+.suggest button .porque { color: var(--accent); margin-top: 2px; }
+.suggest button .chip { display: inline-block; margin-top: 6px; color: var(--ink); }
+.fontes { display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 12px; }
+.fontes:not(:empty)::before { content: "Fontes da pesquisa:"; color: var(--muted); }
+.fontes a { color: var(--accent); max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#sug-busca { width: 100%; height: 64px; border: 0; }
 .status { font-size: 13px; color: var(--muted); min-height: 20px; }
 .status.err { color: #b3261e; }
 :root[data-theme="dark"] .status.err { color: #ffb4ab; }
@@ -188,6 +194,8 @@ details[open] summary { margin-bottom: 8px; }
             <span class="status" id="sug-status" role="status"></span>
           </div>
           <div class="suggest" id="sug"></div>
+          <div class="fontes" id="sug-fontes"></div>
+          <iframe id="sug-busca" title="Sugestões de pesquisa do Google" sandbox="allow-popups allow-popups-to-escape-sandbox" hidden></iframe>
         </div>
 
         <div class="field">
@@ -759,23 +767,49 @@ async function salvarAlteracoes() {
 }
 
 /* ---------- Sugestões de tema ---------- */
+const KEY_SUG = "planejador-tatiana-sugestoes-v1";
+const PILARES = ["ansiedade e necessidade de controle", "relações e vínculos afetivos", "família e padrões herdados", "culpa, limites e dizer não",
+  "autoestima e autocobrança", "trabalho, produtividade e esgotamento", "luto, perdas e mudanças", "ressignificação da própria história",
+  "emoções difíceis (raiva, tristeza, medo)", "o que é e como funciona a psicanálise", "maternidade, paternidade e infância", "solidão e pertencimento"];
+const embaralhar = (a) => a.map(x => [Math.random(), x]).sort((p, q) => p[0] - q[0]).map(x => x[1]);
 async function sugerir() {
-  $("sug-status").textContent = "Pensando em temas…";
-  $("b-sug").disabled = true; $("sug").replaceChildren();
-  const recentes = vis().slice(-10).map(i => i.titulo).join("; ") || "nenhum ainda";
+  $("sug-status").textContent = "Pesquisando o que está em alta e pensando em temas…";
+  $("b-sug").disabled = true; $("sug").replaceChildren(); $("sug-fontes").replaceChildren(); $("sug-busca").hidden = true;
+  const jaSugeridos = (lsGet(KEY_SUG, []) || []).slice(-40);
+  const criados = vis().slice(-30).map(i => i.titulo);
+  const hoje = new Date().toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" });
+  const pilares = embaralhar(PILARES).slice(0, 3);
   const p = BASE.split("\nREGRAS OBRIGATÓRIAS")[0] +
-    "\nSugira 3 temas de conteúdo para o Instagram, alinhados à missão da marca (emoções, controle, ansiedade, ressignificação, autoconhecimento), diferentes dos já criados: " + recentes +
-    '.\nResponda SOMENTE com um array JSON válido de 3 objetos {"titulo": "...", "angulo": "uma linha com o ângulo"}, em português do Brasil, sem markdown.';
+    "\n\nHoje é " + hoje + ". Antes de sugerir, PESQUISE no Google o que está em alta nas últimas semanas no Brasil sobre saúde mental, psicanálise, emoções e comportamento: assuntos e formatos que estão circulando no Instagram, TikTok e YouTube, buscas em alta, notícias, campanhas e datas do período (ex.: meses temáticos, festas de fim de ano, volta às aulas)." +
+    "\nCom base nisso, sugira 3 temas de conteúdo para o perfil da Tatiana, bem diferentes entre si:" +
+    "\n1) um ligado a algo que está em alta agora nas redes ou no noticiário;" +
+    "\n2) um ligado à época do ano ou a uma data/campanha próxima;" +
+    "\n3) um tema perene com um ângulo novo, puxando por um destes pilares: " + pilares.join("; ") + "." +
+    "\nRegras: linguagem simples e acolhedora, base psicanalítica, nada de sensacionalismo, não explorar tragédias nem pessoas reais, não diagnosticar, não prometer cura." +
+    "\nNÃO repita nem reformule estes temas já sugeridos: " + (jaSugeridos.join("; ") || "nenhum") +
+    "\nNem estes roteiros já criados: " + (criados.join("; ") || "nenhum") +
+    '\nResponda SOMENTE com um array JSON válido de 3 objetos {"titulo": "...", "angulo": "uma linha com o ângulo", "porque_agora": "uma linha dizendo o que está em alta ou a data que justifica o tema", "formato": "Reels | Carrossel | Card único | Story"}, em português do Brasil, sem markdown e sem texto fora do JSON.';
   try {
     const res = await chamarWorker({ action: "sugerir", prompt: p });
     const data = await res.json();
     const raw = String(data?.text || "").trim(), match = raw.match(/\[[\s\S]*\]/);
-    const arr = JSON.parse(match ? match[0] : raw);
-    (Array.isArray(arr) ? arr : []).slice(0, 3).forEach(s => {
-      $("sug").append(el("button", { type: "button", onclick: () => { $("tema").value = String(s.titulo || "") + ". " + String(s.angulo || ""); state.modo = "tema"; renderModo(); } },
-        el("b", null, String(s.titulo || "")), el("span", null, String(s.angulo || ""))));
+    const arr = (JSON.parse(match ? match[0] : raw) || []).slice(0, 3);
+    lsSet(KEY_SUG, [...jaSugeridos, ...arr.map(s => String(s.titulo || ""))].slice(-60));
+    arr.forEach(s => {
+      const fmt = FORMATOS.find(f => normNome(f.nome) === normNome(s.formato));
+      $("sug").append(el("button", { type: "button", onclick: () => {
+          $("tema").value = String(s.titulo || "") + ". " + String(s.angulo || "");
+          state.modo = "tema"; if (fmt) state.formato = fmt.id; renderModo(); renderEscolhas(); atualizarBotoesDoc();
+        } },
+        el("b", null, String(s.titulo || "")), el("span", null, String(s.angulo || "")),
+        s.porque_agora ? el("span", { class: "porque" }, "Por que agora: " + String(s.porque_agora)) : null,
+        fmt ? el("span", { class: "chip f" }, "Sugestão: " + fmt.nome) : null));
     });
-    $("sug-status").textContent = Array.isArray(arr) && arr.length ? "Clique em uma ideia para usar como tema." : "Não vieram sugestões. Tente de novo.";
+    (data.fontes || []).forEach(f => { if (/^https:\/\//.test(f.url)) $("sug-fontes").append(el("a", { href: f.url, target: "_blank", rel: "noopener" }, f.titulo || "fonte")); });
+    if (data.sugestoesBusca) { $("sug-busca").srcdoc = data.sugestoesBusca; $("sug-busca").hidden = false; }
+    $("sug-status").textContent = arr.length
+      ? (data.pesquisou ? "Temas baseados no que está em alta agora. Clique em uma ideia para usar." : "A pesquisa na web não estava disponível agora; temas sugeridos sem ela. Clique em uma ideia para usar.")
+      : "Não vieram sugestões. Tente de novo.";
   } catch (e) {
     $("sug-status").textContent = e?.status === 429 ? "A cota gratuita acabou por agora. Tente em alguns minutos." : "Não foi possível sugerir agora.";
   } finally { $("b-sug").disabled = false; }
