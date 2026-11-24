@@ -201,6 +201,7 @@ details[open] summary { margin-bottom: 8px; }
           </details>
           <div class="suggest" id="sug"></div>
           <div class="fontes" id="sug-fontes"></div>
+          <div id="sug-dados"></div>
           <iframe id="sug-busca" title="Sugestões de pesquisa do Google" sandbox="allow-popups allow-popups-to-escape-sandbox" hidden></iframe>
         </div>
 
@@ -778,12 +779,12 @@ const PILARES = ["ansiedade e necessidade de controle", "relações e vínculos 
   "autoestima e autocobrança", "trabalho, produtividade e esgotamento", "luto, perdas e mudanças", "ressignificação da própria história",
   "emoções difíceis (raiva, tristeza, medo)", "o que é e como funciona a psicanálise", "maternidade, paternidade e infância", "solidão e pertencimento"];
 const KEY_PALAVRAS = "planejador-tatiana-palavras-v1";
-const PALAVRAS_PADRAO = "ansiedade, saúde mental, psicanálise, terapia, autoconhecimento, autoestima, autocuidado, emoções, ressignificar, culpa, limites, relacionamentos, dependência emocional, burnout, luto, sobrecarga, autocobrança, inconsciente, terapia online, saúde mental masculina";
+const PALAVRAS_PADRAO = "ansiedade, saúde mental, psicanálise, terapia, autoconhecimento, autoestima, autocuidado, emoções, ressignificar, culpa, limites, relacionamentos, dependência emocional, burnout, saúde mental no trabalho, luto, sobrecarga, autocobrança, inconsciente, terapia online, saúde mental masculina, saúde mental dos jovens";
 const palavrasChave = () => ($("palavras").value || PALAVRAS_PADRAO).split(/[,;\n]+/).map(x => x.trim()).filter(Boolean);
 const embaralhar = (a) => a.map(x => [Math.random(), x]).sort((p, q) => p[0] - q[0]).map(x => x[1]);
 async function sugerir() {
   $("sug-status").textContent = "Pesquisando o que está em alta e pensando em temas…";
-  $("b-sug").disabled = true; $("sug").replaceChildren(); $("sug-fontes").replaceChildren(); $("sug-busca").hidden = true;
+  $("b-sug").disabled = true; $("sug").replaceChildren(); $("sug-fontes").replaceChildren(); $("sug-busca").hidden = true; $("sug-dados").replaceChildren();
   const jaSugeridos = (lsGet(KEY_SUG, []) || []).slice(-40);
   const criados = vis().slice(-30).map(i => i.titulo);
   const hoje = new Date().toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" });
@@ -792,16 +793,17 @@ async function sugerir() {
   const p = BASE.split("\nREGRAS OBRIGATÓRIAS")[0] +
     "\n\nHoje é " + hoje + ". Antes de sugerir, PESQUISE no Google, partindo destas palavras-chave do nicho: " + sementes.join(", ") + "." +
     "\nPara elas, mapeie no Brasil, nas últimas semanas: hashtags e assuntos relacionados com muitas publicações recentes no Instagram e no TikTok (por exemplo, páginas de hashtags, o TikTok Creative Center e matérias sobre tendências), termos em alta no Google Trends, notícias e campanhas ou datas do período (meses temáticos, festas de fim de ano, volta às aulas). Não é preciso número exato de publicações: basta identificar quais assuntos e palavras-chave estão concentrando muitos posts e buscas agora." +
+    "\nO foco é o NICHO da Tatiana (saúde emocional, psicanálise, comportamento e relações). Pautas quentes são bem-vindas, desde que dentro do nicho ou com ponte clara e ética para ele." +
     "\nCom base nisso, sugira 3 temas de conteúdo para o perfil da Tatiana, bem diferentes entre si:" +
-    "\n1) um ligado a algo que está em alta agora nas redes ou no noticiário;" +
-    "\n2) um ligado à época do ano ou a uma data/campanha próxima;" +
-    "\n3) um tema perene com um ângulo novo, puxando por um destes pilares: " + pilares.join("; ") + "." +
+    "\n1) uma pauta quente do nicho: notícia, estudo, debate ou assunto de saúde mental/comportamento que está repercutindo agora;" +
+    "\n2) uma pergunta real que as pessoas estão buscando agora (use os dados do autocompletar do Google, se vierem) respondida com olhar psicanalítico;" +
+    "\n3) um tema da época do ano, de uma data/campanha próxima ou de um assunto em alta no Brasil com ligação emocional evidente; se nada servir, um tema perene com ângulo novo puxando por: " + pilares.join("; ") + "." +
     "\nRegras: linguagem simples e acolhedora, base psicanalítica, nada de sensacionalismo, não explorar tragédias nem pessoas reais, não diagnosticar, não prometer cura." +
     "\nNÃO repita nem reformule estes temas já sugeridos: " + (jaSugeridos.join("; ") || "nenhum") +
     "\nNem estes roteiros já criados: " + (criados.join("; ") || "nenhum") +
     '\nResponda SOMENTE com um array JSON válido de 3 objetos {"titulo": "...", "angulo": "uma linha com o ângulo", "porque_agora": "uma linha dizendo o que está em alta ou a data que justifica o tema", "palavras_chave": ["3 a 6 hashtags ou termos em alta ligados ao tema, com # quando for hashtag"], "formato": "Reels | Carrossel | Card único | Story"}, em português do Brasil, sem markdown e sem texto fora do JSON.';
   try {
-    const res = await chamarWorker({ action: "sugerir", prompt: p });
+    const res = await chamarWorker({ action: "sugerir", prompt: p, sementes });
     const data = await res.json();
     const raw = String(data?.text || "").trim(), match = raw.match(/\[[\s\S]*\]/);
     const arr = (JSON.parse(match ? match[0] : raw) || []).slice(0, 3);
@@ -820,6 +822,13 @@ async function sugerir() {
     });
     (data.fontes || []).forEach(f => { if (/^https:\/\//.test(f.url)) $("sug-fontes").append(el("a", { href: f.url, target: "_blank", rel: "noopener" }, f.titulo || "fonte")); });
     if (data.sugestoesBusca) { $("sug-busca").srcdoc = data.sugestoesBusca; $("sug-busca").hidden = false; }
+    const dados = $("sug-dados"); dados.replaceChildren();
+    if ((data.perguntasGoogle || []).length || (data.emAlta || []).length) {
+      const det = el("details", null, el("summary", null, "Dados reais do Google usados nesta sugestão"));
+      if ((data.perguntasGoogle || []).length) det.append(el("p", { class: "hint" }, "Buscas do autocompletar (como no AnswerThePublic): " + data.perguntasGoogle.slice(0, 20).join(" · ")));
+      if ((data.emAlta || []).length) det.append(el("p", { class: "hint" }, "Em alta hoje no Brasil (Google Trends): " + data.emAlta.slice(0, 12).join(" · ")));
+      dados.append(det);
+    }
     $("sug-status").textContent = arr.length
       ? (data.pesquisou ? "Temas baseados no que está em alta agora. Clique em uma ideia para usar." : "A pesquisa na web não estava disponível agora; temas sugeridos sem ela. Clique em uma ideia para usar.")
       : "Não vieram sugestões. Tente de novo.";
