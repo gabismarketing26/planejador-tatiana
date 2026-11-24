@@ -270,7 +270,7 @@ details[open] summary { margin-bottom: 8px; }
           <div class="field">
             <label for="mt-arquivos">Enviar fotos ou vídeos para o Google Drive</label>
             <input type="file" id="mt-arquivos" multiple accept="image/*,video/*">
-            <p class="hint">Os arquivos vão para a pasta <b>Materiais de produção</b> no Drive de quem entrar com a conta Google (a Tatiana), dentro de <b>Tipo › Categoria</b>. Se a pasta já existir, o arquivo entra nela; se não, ela é criada uma única vez. Os arquivos ficam privados e nunca são enviados à IA, só a descrição e o link.</p>
+            <p class="hint">Os arquivos vão para a pasta <b>Materiais de produção</b> no Drive da Tatiana, dentro de <b>Tipo › Categoria</b>. Se a pasta já existir, o arquivo entra nela; se não, ela é criada uma única vez. Para a consultoria enviar, a Tatiana precisa compartilhar essa pasta com o seu e-mail como Editor. Ao enviar, o Google pede acesso ao Drive: esse acesso fica só neste navegador. Os arquivos ficam privados e nunca são enviados à IA, só a descrição e o link.</p>
           </div>
           <div class="row">
             <button class="btn" id="b-upload" type="button">Enviar para o Drive</button>
@@ -322,7 +322,9 @@ const WORKER_URL = "https://planejador-tatiana.gabismarketing26.workers.dev";
 const MARCA_INCOMPLETO = "[GERAÇÃO INCOMPLETA]";
 /* ---------- Google Drive (login Google da Tatiana) ---------- */
 const GOOGLE_CLIENT_ID = "636516786951-cdmfjr3go8hi51bi7fvvq5nvrs5p3jt0.apps.googleusercontent.com";   // ID do cliente OAuth do Google Cloud (público; não é segredo)
-const DRIVE_ESCOPO = "openid email https://www.googleapis.com/auth/drive.file"; // e-mail (para o histórico) + só o que o Planejador criou no Drive
+const DRIVE_ESCOPO = "openid email";   // login: só identifica o e-mail (este token vai ao Worker)
+const ESCOPO_ARQUIVOS = "https://www.googleapis.com/auth/drive"; // pedido só ao enviar arquivos; fica apenas no navegador
+const DONOS_MATERIAIS = ["psicanalista.tatianaferreira@gmail.com", "thatyannapietro@gmail.com"]; // contas da Tatiana
 const PASTA_RAIZ = "Materiais de produção";
 
 const FORMATOS = [
@@ -925,7 +927,7 @@ function pedirToken() {
   return new Promise((resolve, reject) => {
     if (drive.token && Date.now() < drive.expira - 60000) return resolve(drive.token);
     if (!window.google?.accounts?.oauth2) return reject(new Error("GOOGLE_NAO_CARREGADO"));
-    if (!drive.cliente) drive.cliente = google.accounts.oauth2.initTokenClient({ client_id: GOOGLE_CLIENT_ID, scope: DRIVE_ESCOPO, callback: () => {} });
+    if (!drive.cliente) drive.cliente = google.accounts.oauth2.initTokenClient({ client_id: GOOGLE_CLIENT_ID, scope: DRIVE_ESCOPO, include_granted_scopes: false, callback: () => {} });
     drive.cliente.callback = (r) => {
       if (r.error) return reject(new Error("LOGIN_" + r.error));
       drive.token = r.access_token; drive.expira = Date.now() + (Number(r.expires_in) || 3600) * 1000; resolve(drive.token);
@@ -934,9 +936,24 @@ function pedirToken() {
     drive.cliente.requestAccessToken({ prompt: "" });
   });
 }
+// Acesso ao Drive para arquivos: token próprio, que nunca sai do navegador.
+function pedirTokenArquivos() {
+  return new Promise((resolve, reject) => {
+    if (drive.tokenArq && Date.now() < drive.expiraArq - 60000) return resolve(drive.tokenArq);
+    if (!window.google?.accounts?.oauth2) return reject(new Error("GOOGLE_NAO_CARREGADO"));
+    if (!drive.clienteArq) drive.clienteArq = google.accounts.oauth2.initTokenClient({ client_id: GOOGLE_CLIENT_ID, scope: ESCOPO_ARQUIVOS, include_granted_scopes: false, callback: () => {} });
+    drive.clienteArq.callback = (r) => {
+      if (r.error) return reject(new Error("LOGIN_" + r.error));
+      if (!String(r.scope || "").includes(ESCOPO_ARQUIVOS)) return reject(new Error("LOGIN_sem_permissao_drive"));
+      drive.tokenArq = r.access_token; drive.expiraArq = Date.now() + (Number(r.expires_in) || 3600) * 1000; resolve(drive.tokenArq);
+    };
+    drive.clienteArq.error_callback = (e) => reject(new Error("LOGIN_" + (e && e.type || "cancelado")));
+    drive.clienteArq.requestAccessToken({ prompt: "", login_hint: sync.email || undefined });
+  });
+}
 async function gapi(url, opts = {}) {
-  const res = await fetch(url, { ...opts, headers: { ...(opts.headers || {}), Authorization: "Bearer " + drive.token } });
-  if (res.status === 401) { drive.token = null; throw new Error("SESSAO_EXPIRADA"); }
+  const res = await fetch(url, { ...opts, headers: { ...(opts.headers || {}), Authorization: "Bearer " + drive.tokenArq } });
+  if (res.status === 401) { drive.tokenArq = null; throw new Error("SESSAO_EXPIRADA"); }
   if (!res.ok) { const e = new Error("DRIVE_" + res.status); e.status = res.status; throw e; }
   return res.json();
 }
@@ -962,9 +979,9 @@ async function garantirPasta(nome, paiId) {
   return id;
 }
 // Um caminho por vez, para dois envios simultâneos não criarem a mesma pasta duas vezes.
-function garantirCaminho(partes) {
+function garantirCaminho(partes, inicio) {
   const tarefa = drive.fila.then(async () => {
-    let pai = "root"; const ids = [];
+    let pai = inicio || "root"; const ids = [];
     for (const nome of partes) { pai = await garantirPasta(nome, pai); ids.push(pai); }
     return ids;
   });
@@ -980,12 +997,25 @@ async function enviarArquivo(arquivo, pastaId) {
     return gapi(DRIVE_UP + "?uploadType=multipart&fields=id,name,webViewLink", { method: "POST", headers: { "Content-Type": "multipart/related; boundary=" + b }, body: corpo });
   }
   const ini = await fetch(DRIVE_UP + "?uploadType=resumable&fields=id,name,webViewLink", { method: "POST",
-    headers: { Authorization: "Bearer " + drive.token, "Content-Type": "application/json; charset=UTF-8", "X-Upload-Content-Type": tipo }, body: JSON.stringify(meta) });
+    headers: { Authorization: "Bearer " + drive.tokenArq, "Content-Type": "application/json; charset=UTF-8", "X-Upload-Content-Type": tipo }, body: JSON.stringify(meta) });
   const sessao = ini.ok && ini.headers.get("Location");
   if (!sessao) throw new Error("DRIVE_" + ini.status);
   const res = await fetch(sessao, { method: "PUT", headers: { "Content-Type": tipo }, body: arquivo });
   if (!res.ok) throw new Error("DRIVE_" + res.status);
   return res.json();
+}
+const souDona = () => DONOS_MATERIAIS.includes(String(sync.email || "").toLowerCase());
+// Para a consultoria: acha a pasta "Materiais de produção" que a Tatiana compartilhou.
+async function acharPastaDaTatiana() {
+  const salvo = lsGet(KEY_PASTAS + "-tatiana", null);
+  if (salvo) { try { const f = await gapi(DRIVE_API + "/" + salvo + "?fields=id,trashed,capabilities(canAddChildren)"); if (!f.trashed && f.capabilities?.canAddChildren) return salvo; } catch (e) { if (e.message === "SESSAO_EXPIRADA") throw e; } }
+  const q = "name='" + PASTA_RAIZ + "' and mimeType='" + PASTA_MIME + "' and sharedWithMe=true and trashed=false";
+  const r = await gapi(DRIVE_API + "?q=" + encodeURIComponent(q) + "&fields=files(id,owners(emailAddress),capabilities(canAddChildren))&pageSize=50");
+  const cands = (r.files || []).filter(f => (f.owners || []).some(o => DONOS_MATERIAIS.includes(String(o.emailAddress).toLowerCase())));
+  const ok = cands.find(f => f.capabilities?.canAddChildren);
+  if (!ok) throw new Error(cands.length ? "SEM_PERMISSAO_EDITAR" : "PASTA_NAO_COMPARTILHADA");
+  lsSet(KEY_PASTAS + "-tatiana", ok.id);
+  return ok.id;
 }
 async function enviarParaDrive() {
   const arquivos = [...($("mt-arquivos").files || [])];
@@ -996,9 +1026,11 @@ async function enviarParaDrive() {
   const btn = $("b-upload"); btn.disabled = true;
   try {
     matStatus("Conectando ao Google Drive…");
-    await pedirToken();
+    await pedirTokenArquivos();
     matStatus("Preparando as pastas…");
-    const [raiz, , pastaCat] = await garantirCaminho([PASTA_RAIZ, tipo, cat]);
+    let raiz, pastaCat;
+    if (souDona()) { [raiz, , pastaCat] = await garantirCaminho([PASTA_RAIZ, tipo, cat]); }
+    else { raiz = await acharPastaDaTatiana(); [, pastaCat] = await garantirCaminho([tipo, cat], raiz); }
     const catReal = drive.nomes[pastaCat] || cat;
     $("link-raiz").href = "https://drive.google.com/drive/folders/" + raiz; $("link-raiz").hidden = false;
     lsSet(KEY_PASTAS + "-raiz", raiz);
@@ -1021,6 +1053,8 @@ async function enviarParaDrive() {
     if (m === "SESSAO_EXPIRADA") matStatus("A conexão com o Google expirou. Clique em Enviar de novo.", true);
     else if (m.startsWith("LOGIN_")) matStatus("O login do Google foi cancelado ou bloqueado. Libere as janelas pop-up deste site e tente de novo.", true);
     else if (m === "GOOGLE_NAO_CARREGADO") { carregarGoogle(); matStatus("Carregando o login do Google. Clique em Enviar de novo em alguns segundos.", true); }
+    else if (m === "PASTA_NAO_COMPARTILHADA") matStatus("A Tatiana ainda não compartilhou a pasta \"" + PASTA_RAIZ + "\" com " + (sync.email || "este e-mail") + ". Peça para ela compartilhar como Editor (ela cria a pasta no primeiro envio dela).", true);
+    else if (m === "SEM_PERMISSAO_EDITAR") matStatus("A pasta da Tatiana está compartilhada só para leitura. Peça para ela mudar o seu acesso para Editor.", true);
     else matStatus("Não foi possível enviar agora (" + m + "). Tente de novo.", true);
   } finally { btn.disabled = false; }
 }
