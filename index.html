@@ -42,6 +42,12 @@ body { background: var(--bg); color: var(--ink); font-family: var(--font-body); 
 h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text-wrap: balance; }
 button, input, select, textarea { font: inherit; color: inherit; }
 [hidden] { display: none !important; }
+#gate { position: fixed; inset: 0; z-index: 50; background: var(--bg); display: flex; align-items: center; justify-content: center; padding: 24px; }
+#gate .box { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 36px 32px; max-width: 440px; width: 100%; text-align: center; display: flex; flex-direction: column; gap: 14px; align-items: center; }
+#gate h1 { font-size: 30px; }
+#gate p { margin: 0; color: var(--muted); }
+#gate-status { font-size: 14px; min-height: 20px; }
+#gate-status.err { color: #b3261e; }
 .wrap { max-width: 1180px; margin: 0 auto; padding: 20px 16px 48px; display: flex; flex-direction: column; gap: 20px; }
 header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 16px; }
 header h1 { font-size: 28px; }
@@ -135,6 +141,15 @@ details[open] summary { margin-bottom: 8px; }
 </style>
 </head>
 <body>
+<div id="gate">
+  <div class="box">
+    <h1>Planejador da Tatiana</h1>
+    <p>Acesso restrito à equipe. Entre com a sua conta Google autorizada.</p>
+    <button class="btn" id="b-gate" type="button">Entrar com Google</button>
+    <div id="gate-status" role="status"></div>
+    <p class="hint">Na primeira vez, o Google pode avisar que o app não foi verificado. Por ser uma ferramenta interna, clique em "Continuar".</p>
+  </div>
+</div>
 <div class="wrap">
   <header>
     <h1>Planejador da Tatiana</h1>
@@ -674,7 +689,10 @@ function tituloDoDoc(texto, tema) {
 
 async function chamarWorker(payload, signal) {
   if (!WORKER_URL || WORKER_URL.includes("SEU-WORKER")) throw new Error("WORKER_NAO_CONFIGURADO");
-  const res = await fetch(WORKER_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload), signal });
+  const headers = { "Content-Type": "application/json" };
+  if (drive.token) headers.Authorization = "Bearer " + drive.token;
+  const res = await fetch(WORKER_URL, { method: "POST", headers, body: JSON.stringify(payload), signal });
+  if (res.status === 401 || res.status === 403) { mostrarEntrada(res.status === 403 ? "Este e-mail não tem acesso ao Planejador." : "Sua sessão expirou. Entre de novo com o Google."); }
   if (!res.ok) { const err = new Error("HTTP_" + res.status); err.status = res.status; throw err; }
   return res;
 }
@@ -715,7 +733,7 @@ async function gerar() {
     if (state.ctrl.signal.aborted || e?.name === "AbortError") info("Geração interrompida.");
     else if (e?.message === "WORKER_NAO_CONFIGURADO") erro("Configure a URL do seu Cloudflare Worker no código antes de gerar.");
     else if (e?.status === 429) erro("A cota gratuita do Gemini acabou por agora. Aguarde alguns minutos e tente de novo.");
-    else if (e?.status === 403) erro("Este site não está autorizado no Worker (ALLOWED_ORIGIN).");
+    else if (e?.status === 401 || e?.status === 403) erro("Entre de novo com o Google para continuar.");
     else erro("Não foi possível gerar agora. Verifique a conexão e tente de novo.");
   } finally {
     state.gerando = false;
@@ -1064,10 +1082,28 @@ async function sincronizarAgora(silencioso) {
     $("b-sync").textContent = "Sincronizar agora";
     $("hist-hint").textContent = "Histórico compartilhado: aparece aqui o que a Tatiana e a consultoria criarem.";
     renderResumo(); renderLista(); renderMateriais();
+    liberarApp();
   } catch (e) {
+    if (e.status === 401 || e.status === 403) mostrarEntrada(e.status === 403 ? "Este e-mail (" + (sync.email || "conta escolhida") + ") não tem acesso ao Planejador. Entre com uma conta autorizada." : "Sua sessão expirou. Entre de novo com o Google.");
+    else if (!$("gate").hidden) mostrarEntrada("Não foi possível verificar o acesso agora: " + e.message);
     syncStatus(e.status === 403 ? "Este e-mail não tem acesso ao histórico compartilhado" : (e.status === 401 ? "Login expirado: clique em Entrar com Google" : "Não foi possível sincronizar: " + e.message), "err");
     if (e.status === 401) $("b-sync").textContent = "Entrar com Google";
   } finally { sync.rodando = false; $("b-sync").disabled = false; }
+}
+function mostrarEntrada(msg, erroMsg) {
+  drive.token = msg ? null : drive.token;
+  $("gate").hidden = false;
+  $("gate-status").textContent = msg || ""; $("gate-status").className = erroMsg === false ? "" : (msg ? "err" : "");
+}
+function liberarApp() { $("gate").hidden = true; }
+function entrarPelaTela() {
+  if (!GOOGLE_CLIENT_ID) { $("gate-status").textContent = "Login do Google não configurado."; return; }
+  $("gate-status").textContent = "Abrindo o login do Google…"; $("gate-status").className = "";
+  pedirToken().then(() => { $("gate-status").textContent = "Verificando acesso…"; return sincronizarAgora(); })
+    .catch(e => {
+      if (e.message === "GOOGLE_NAO_CARREGADO") { carregarGoogle(); mostrarEntrada("Carregando o login do Google; clique de novo em instantes."); }
+      else mostrarEntrada("Login cancelado ou bloqueado. Libere as janelas pop-up deste site e tente de novo.");
+    });
 }
 function entrarESincronizar() {
   if (!GOOGLE_CLIENT_ID) { syncStatus("Login do Google não configurado", "err"); return; }
@@ -1106,6 +1142,7 @@ function ligar() {
   $("b-addmat").addEventListener("click", adicionarUm);
   $("b-upload").addEventListener("click", enviarParaDrive);
   $("b-sync").addEventListener("click", entrarESincronizar);
+  $("b-gate").addEventListener("click", entrarPelaTela);
   window.addEventListener("focus", () => { if (tokenValido() && Date.now() - sync.ultimo > 30000) sincronizarAgora(true); });
   $("b-lote").addEventListener("click", importarLote);
   $("b-exp").addEventListener("click", exportarMats);
