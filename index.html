@@ -6,68 +6,73 @@
 <title>Planejador da Tatiana</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Figtree:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 /* Layout: abas no topo (Roteiros / Materiais). Em Roteiros: faixa de resumo; abaixo, coluna "Criar" e coluna "Histórico". */
 :root {
-  --bg: #f3f6f5;
-  --surface: #ffffff;
-  --ink: #1d2b2e;
-  --muted: #5d6f72;
-  --line: #d9e2e0;
-  --accent: #2c6b66;
-  --accent-ink: #ffffff;
-  --accent-soft: #dcebe8;
-  --plum: #7b4a6d;
-  --plum-soft: #efe3ec;
-  --font-display: "Fraunces", Georgia, "Times New Roman", serif;
-  --font-body: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* Kit de Marca da Tatiana (doc "Avatar e diretrizes"): creme #F4EFEA, azul #134B9E, azul médio #1C5276, terracota #A53618, marrom #8C4731 */
+  --bg: #F4EFEA;
+  --surface: #FFFFFF;
+  --ink: #1C5276;
+  --title: #134B9E;
+  --muted: #5A6B78;
+  --line: #E4DAD0;
+  --accent: #134B9E;
+  --accent-ink: #FFFFFF;
+  --accent-soft: #E6ECF6;
+  --plum: #A53618;
+  --plum-soft: #F5E4DD;
+  --brown: #8C4731;
+  --font-display: "Playfair Display", "Lora", Georgia, "Times New Roman", serif;
+  --font-body: "Inter", "Montserrat", "Open Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #131c1e; --surface: #1b2729; --ink: #e6efed; --muted: #9fb2b0; --line: #2d3d3f;
-    --accent: #6fbdb5; --accent-ink: #0f1d1c; --accent-soft: #233c3a; --plum: #d3a5c6; --plum-soft: #3a2736;
+    --bg: #0F1D2C; --surface: #172A3D; --ink: #E8EEF4; --title: #A9C4EE; --muted: #A3B3C2; --line: #2A3F55;
+    --accent: #8DB0EA; --accent-ink: #0B1726; --accent-soft: #1E3550; --plum: #E39A80; --plum-soft: #3A2620; --brown: #D9A58F;
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #131c1e; --surface: #1b2729; --ink: #e6efed; --muted: #9fb2b0; --line: #2d3d3f;
-  --accent: #6fbdb5; --accent-ink: #0f1d1c; --accent-soft: #233c3a; --plum: #d3a5c6; --plum-soft: #3a2736;
+  --bg: #0F1D2C; --surface: #172A3D; --ink: #E8EEF4; --title: #A9C4EE; --muted: #A3B3C2; --line: #2A3F55;
+  --accent: #8DB0EA; --accent-ink: #0B1726; --accent-soft: #1E3550; --plum: #E39A80; --plum-soft: #3A2620; --brown: #D9A58F;
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; }
 body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.5; }
-h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text-wrap: balance; }
+h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text-wrap: balance; color: var(--title); }
 button, input, select, textarea { font: inherit; color: inherit; }
 [hidden] { display: none !important; }
 #gate { position: fixed; inset: 0; z-index: 50; background: var(--bg); display: flex; align-items: center; justify-content: center; padding: 24px; }
 #gate .box { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 36px 32px; max-width: 440px; width: 100%; text-align: center; display: flex; flex-direction: column; gap: 14px; align-items: center; }
-#gate h1 { font-size: 30px; }
+#gate h1 { font-size: 32px; }
+#gate .box { border-top: 4px solid var(--plum); }
 #gate p { margin: 0; color: var(--muted); }
 #gate-status { font-size: 14px; min-height: 20px; }
 #gate-status.err { color: #b3261e; }
 .wrap { max-width: 1180px; margin: 0 auto; padding: 20px 16px 48px; display: flex; flex-direction: column; gap: 20px; }
 header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 16px; }
-header h1 { font-size: 28px; }
+header h1 { font-size: 30px; }
+header .marca { color: var(--plum); font-size: 13px; letter-spacing: .08em; text-transform: uppercase; font-weight: 600; margin-bottom: 2px; }
 header p { margin: 0; color: var(--muted); max-width: 60ch; }
 .sync { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); flex-wrap: wrap; }
 #sync-status.ok { color: var(--accent); font-weight: 600; }
 #sync-status.err { color: #b3261e; }
 .nav { display: flex; gap: 8px; border-bottom: 1px solid var(--line); }
 .nav button { border: 0; background: none; padding: 10px 14px; cursor: pointer; font-weight: 600; color: var(--muted); border-bottom: 3px solid transparent; margin-bottom: -1px; }
-.nav button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+.nav button[aria-selected="true"] { color: var(--title); border-bottom-color: var(--plum); }
 .view { display: flex; flex-direction: column; gap: 20px; }
 
 .tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
 .tile { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; min-width: 0; }
 .tile .lbl { color: var(--muted); font-size: 13px; }
-.tile .val { font-family: var(--font-display); font-size: 26px; font-weight: 600; line-height: 1.2; overflow-wrap: anywhere; }
+.tile .val { color: var(--title); font-family: var(--font-body); font-variant-numeric: lining-nums; font-size: 26px; font-weight: 600; line-height: 1.2; overflow-wrap: anywhere; }
 .tile .val.small { font-size: 18px; }
 .bars { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
 .bar { display: grid; grid-template-columns: 74px 1fr 24px; align-items: center; gap: 8px; font-size: 13px; }
-.bar i { display: block; height: 8px; border-radius: 4px; background: var(--accent); min-width: 2px; }
+.bar i { display: block; height: 8px; border-radius: 4px; background: var(--plum); min-width: 2px; }
 .bar span:last-child { text-align: right; font-variant-numeric: tabular-nums; }
 
 .main { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 20px; align-items: start; }
@@ -87,6 +92,7 @@ details[open] summary { margin-bottom: 8px; }
 
 .tabs, .choices { display: flex; flex-wrap: wrap; gap: 8px; }
 .tab, .choice { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 8px 12px; cursor: pointer; }
+.btn:hover:not(:disabled) { filter: brightness(1.08); }
 .tab[aria-pressed="true"], .choice[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
 .choice { flex: 1 1 130px; text-align: left; display: flex; flex-direction: column; gap: 2px; }
 .choice small { opacity: .85; font-size: 12px; }
@@ -96,8 +102,10 @@ details[open] summary { margin-bottom: 8px; }
 .btn:disabled { opacity: .5; cursor: not-allowed; }
 .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .suggest { display: flex; flex-direction: column; gap: 8px; }
-.suggest button { text-align: left; border: 1px dashed var(--accent); background: var(--accent-soft); border-radius: 8px; padding: 8px 12px; cursor: pointer; }
-.suggest button b { display: block; }
+.suggest button { text-align: left; border: 1px solid var(--line); border-left: 4px solid var(--plum); background: var(--surface); transition: box-shadow .15s; border-radius: 8px; padding: 8px 12px; cursor: pointer; }
+.suggest button b { display: block; font-family: var(--font-display); color: var(--title); font-size: 16px; }
+.suggest button:hover { box-shadow: 0 2px 10px rgba(19,75,158,.12); }
+.suggest button .gerar { color: var(--plum); font-weight: 600; margin-top: 6px; }
 .suggest button span { color: var(--muted); font-size: 13px; display: block; }
 .suggest button .porque { color: var(--accent); margin-top: 2px; }
 .suggest button .tags { color: var(--plum); font-weight: 600; margin-top: 4px; word-spacing: 4px; }
@@ -159,7 +167,7 @@ details[open] summary { margin-bottom: 8px; }
 </div>
 <div class="wrap">
   <header>
-    <h1>Planejador da Tatiana</h1>
+    <div><div class="marca">@psi_tatianaferreira</div><h1>Planejador da Tatiana</h1></div>
     <p>Roteiros de Reels, carrosséis, cards e stories para o Instagram, na voz da Tatiana, com histórico e biblioteca de materiais.</p>
     <div class="sync"><span id="sync-status">Histórico só neste navegador</span><button class="btn small" id="b-sync" type="button">Entrar com Google</button></div>
   </header>
@@ -361,9 +369,9 @@ const CTAS = [
 const TIPOS_MAT = ["Foto pessoal", "Foto profissional", "Vídeo", "Portfólio Canva", "Referência visual"];
 
 const IDENTIDADE_PADRAO = [
-  "Paleta: tons suaves e acolhedores (verde-sálvia, bege areia, off-white e um tom de destaque discreto, como terracota claro).",
-  "Tipografia: títulos em fonte serifada elegante; textos em fonte sem serifa, limpa e legível.",
-  "Estilo: minimalista e sereno, bastante espaço em branco, fotos com luz natural, sem excesso de elementos.",
+  "Paleta oficial (Kit de Marca): fundo creme #F4EFEA; azul principal #134B9E (títulos e capas); azul médio #1C5276 (corpo de texto e subtextos); terracota vivo #A53618 (destaque pontual nas palavras-chave emocionais); marrom terroso #8C4731 (apoio).",
+  "Tipografia: títulos em fonte serifada elegante (Playfair Display, Lora ou Cormorant Garamond); corpo em fonte sem serifa limpa (Inter, Montserrat ou Open Sans).",
+  "Layout: estilo clean, margens generosas (respiro visual), hierarquia clara com negrito e destaque pontual em terracota, sem poluição visual.",
   "Assinatura: @psi_tatianaferreira discreto no rodapé de cada peça."
 ].join("\n");
 
@@ -814,11 +822,13 @@ async function sugerir() {
           const pcs = (Array.isArray(s.palavras_chave) ? s.palavras_chave : []).map(String).filter(Boolean);
           $("tema").value = String(s.titulo || "") + ". " + String(s.angulo || "") + (pcs.length ? "\nPalavras-chave em alta para usar no texto e nas hashtags: " + pcs.join(" ") : "");
           state.modo = "tema"; if (fmt) state.formato = fmt.id; renderModo(); renderEscolhas(); atualizarBotoesDoc();
+          if (!state.gerando) { $("doc").scrollIntoView({ behavior: "smooth", block: "center" }); gerar(); }
         } },
         el("b", null, String(s.titulo || "")), el("span", null, String(s.angulo || "")),
         s.porque_agora ? el("span", { class: "porque" }, "Por que agora: " + String(s.porque_agora)) : null,
         (Array.isArray(s.palavras_chave) && s.palavras_chave.length) ? el("span", { class: "tags" }, s.palavras_chave.slice(0, 6).map(String).join("  ")) : null,
-        fmt ? el("span", { class: "chip f" }, "Sugestão: " + fmt.nome) : null));
+        fmt ? el("span", { class: "chip f" }, "Sugestão: " + fmt.nome) : null,
+        el("span", { class: "gerar" }, "Gerar este roteiro →")));
     });
     (data.fontes || []).forEach(f => { if (/^https:\/\//.test(f.url)) $("sug-fontes").append(el("a", { href: f.url, target: "_blank", rel: "noopener" }, f.titulo || "fonte")); });
     if (data.sugestoesBusca) { $("sug-busca").srcdoc = data.sugestoesBusca; $("sug-busca").hidden = false; }
@@ -830,7 +840,7 @@ async function sugerir() {
       dados.append(det);
     }
     $("sug-status").textContent = arr.length
-      ? (data.pesquisou ? "Temas baseados no que está em alta agora. Clique em uma ideia para usar." : "A pesquisa na web não estava disponível agora; temas sugeridos sem ela. Clique em uma ideia para usar.")
+      ? (data.pesquisou ? "Temas baseados no que está em alta agora. Clique em uma ideia para gerar o roteiro na hora." : "A pesquisa na web não estava disponível agora; temas sugeridos sem ela. Clique em uma ideia para gerar o roteiro na hora.")
       : "Não vieram sugestões. Tente de novo.";
   } catch (e) {
     $("sug-status").textContent = e?.status === 429 ? "A cota gratuita acabou por agora. Tente em alguns minutos." : "Não foi possível sugerir agora.";
