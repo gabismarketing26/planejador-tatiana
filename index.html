@@ -147,6 +147,15 @@ details[open] summary { margin-bottom: 8px; }
 #link-raiz { color: var(--accent); font-weight: 600; font-size: 14px; }
 .mat .d { font-size: 14px; }
 
+/* Aprendizados */
+.regra { border: 1px solid var(--line); border-left: 4px solid var(--plum); border-radius: 8px; padding: 10px 12px; background: var(--bg); display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+.regra.off { opacity: .6; border-left-color: var(--line); }
+.regra.sug { border-left-color: var(--accent); background: var(--accent-soft); }
+.regra .r { font-weight: 600; color: var(--title); overflow-wrap: anywhere; }
+.regra .meta { color: var(--muted); font-size: 12px; }
+.regra textarea { min-height: 56px; font-size: 14px; }
+.regras { display: flex; flex-direction: column; gap: 8px; }
+.add-regra { display: grid; grid-template-columns: 1fr 160px auto; gap: 8px; align-items: center; }
 /* Aprovação */
 .tiles.st { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 .tiles.st .tile { border-top: 4px solid var(--c, var(--accent)); }
@@ -172,6 +181,7 @@ details[open] summary { margin-bottom: 8px; }
 @media (max-width: 900px) {
   .tiles.st { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .apr-bar { grid-template-columns: 1fr; }
+  .add-regra { grid-template-columns: 1fr; }
   .kanban { grid-template-columns: minmax(0, 1fr); }
   .motivos .bar { grid-template-columns: 140px 1fr 24px; }
   .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -305,6 +315,20 @@ details[open] summary { margin-bottom: 8px; }
       </div>
       <div class="status" id="apr-status" role="status"></div>
       <div class="kanban" id="kanban"></div>
+    </section>
+    <section class="panel" aria-labelledby="h-apz">
+      <h2 id="h-apz">Aprendizados para os próximos conteúdos</h2>
+      <p class="hint">Cada pedido de ajuste ou reprovação é avaliado: se vale para futuras peças (tom, gancho, tamanho, CTA, linguagem, temas a evitar), vira uma sugestão de regra. Depois de aprovada, a regra entra automaticamente em toda nova geração de roteiro. Pedidos pontuais, como corrigir uma frase ou um dado, ficam só no roteiro.</p>
+      <h3>Sugestões para revisar</h3>
+      <div class="regras" id="sug-regras"></div>
+      <h3>Regras ativas</h3>
+      <div class="regras" id="regras"></div>
+      <div class="add-regra">
+        <input type="text" id="nr-texto" placeholder="Adicionar regra manualmente. Ex.: Evite perguntas retóricas na capa" aria-label="Nova regra">
+        <select id="nr-formato" aria-label="Vale para"><option value="todos">Todos os formatos</option></select>
+        <button class="btn small" id="b-nr" type="button">Adicionar regra</button>
+      </div>
+      <div class="status" id="apz-status" role="status"></div>
     </section>
     <section class="panel" aria-labelledby="h-mot">
       <h2 id="h-mot">Motivos de ajuste e reprovação</h2>
@@ -608,7 +632,7 @@ const BASE = [
 ].join("\n");
 
 const $ = (id) => document.getElementById(id);
-const state = { modo: "tema", formato: "reels", cta: "isca", items: [], atualId: null, gerando: false, ctrl: null, store: null, textoSalvo: "", mats: [] };
+const state = { regras: [], modo: "tema", formato: "reels", cta: "isca", items: [], atualId: null, gerando: false, ctrl: null, store: null, textoSalvo: "", mats: [] };
 
 function el(tag, props, ...kids) {
   const n = document.createElement(tag);
@@ -641,6 +665,7 @@ function criarStoreLocal() {
 const KEY_MAT = "planejador-tatiana-materiais-v1";
 const KEY_ID = "planejador-tatiana-identidade-v1";
 const KEY_USAR = "planejador-tatiana-usar-materiais";
+const KEY_REGRAS = "planejador-tatiana-regras-v1";
 const pendentesMat = [];
 const salvarMats = () => { lsSet(KEY_MAT, state.mats); if (pendentesMat.length) publicar([], pendentesMat.splice(0)); };
 const vis = () => state.items.filter(i => !i.apagado);
@@ -688,6 +713,7 @@ function chipStatus(i) { const s = stInfo(statusDe(i)); const c = el("span", { c
 function popularFiltros() {
   FORMATOS.forEach(f => $("f-formato").append(el("option", { value: f.id }, f.nome)));
   FORMATOS.forEach(f => $("af-formato").append(el("option", { value: f.id }, f.nome)));
+  FORMATOS.forEach(f => $("nr-formato").append(el("option", { value: f.id }, f.nome)));
   CTAS.forEach(c => $("f-cta").append(el("option", { value: c.id }, c.nome)));
 }
 function abrirItem(id) {
@@ -745,11 +771,13 @@ async function mudarStatus(id, novo, texto, motivo) {
   if (novo === "postado") it.postadoEm = new Date().toISOString();
   registrarStatus(it, novo, nota, motivo); tocar(it);
   publicar([it], []);
-  try { await state.store.salvar(it); aprStatus("“" + (it.titulo || it.tema) + "” agora está em " + stInfo(novo).nome + "."); }
+  try { await state.store.salvar(it); aprStatus("“" + (it.titulo || it.tema) + "” agora está em " + stInfo(novo).nome + "." + (pedeMotivo ? " Avaliando se o pedido vale para os próximos conteúdos…" : "")); }
   catch (e) { aprStatus("Não foi possível salvar o novo status.", true); }
   renderLista(); renderAprovacao();
+  if (pedeMotivo) avaliarAprendizado(it, novo, motivo, nota);
 }
 function renderAprovacao() {
+  renderAprendizados();
   const todos = vis();
   const porSt = {}; todos.forEach(i => { const s = statusDe(i); porSt[s] = (porSt[s] || 0) + 1; });
   const tiles = $("apr-tiles"); tiles.replaceChildren();
@@ -803,6 +831,105 @@ function cardAprovacao(i, s) {
   return card;
 }
 
+/* ---------- Aprendizados (melhoria contínua) ---------- */
+const MOTIVOS_GERAIS = ["Tom de voz", "Gancho ou capa", "Tamanho do texto", "Chamada para ação (CTA)", "Identidade visual", "Fora da linha editorial"];
+const regrasVis = () => state.regras.filter(r => !r.apagado && !r.pendente);
+const sugVis = () => state.regras.filter(r => !r.apagado && r.pendente);
+const salvarRegras = (mudadas) => { lsSet(KEY_REGRAS, state.regras); if (mudadas && mudadas.length) publicar([], [], mudadas); };
+function apzStatus(msg, err) { $("apz-status").textContent = msg; $("apz-status").className = "status" + (err ? " err" : ""); }
+function regrasParaGerar(formato) {
+  return regrasVis().filter(r => r.ativo !== false && (!r.formato || r.formato === "todos" || r.formato === formato))
+    .sort((a, b) => (b.ocorrencias || 1) - (a.ocorrencias || 1) || String(b.atualizadoEm).localeCompare(String(a.atualizadoEm))).slice(0, 15);
+}
+function novaRegra(texto, formato, motivo, origem) {
+  const r = { id: "g" + proxId(), texto: texto.trim().slice(0, 300), formato: formato || "todos", motivo: motivo || "", origemId: origem ? origem.id : "", origemTitulo: origem ? (origem.titulo || origem.tema || "") : "", criadoEm: new Date().toISOString(), ativo: true, ocorrencias: 1 };
+  tocar(r); state.regras.push(r); salvarRegras([r]); return r;
+}
+function lerJson(txt) {
+  const m = String(txt || "").replace(/```json|```/g, "").match(/\{[\s\S]*\}/);
+  if (!m) return null; try { return JSON.parse(m[0]); } catch (e) { return null; }
+}
+async function avaliarAprendizado(it, status, motivo, nota) {
+  const existentes = regrasVis().filter(r => r.ativo !== false).map(r => r.id + " | " + r.texto).join("\n") || "(nenhuma)";
+  const prompt = [
+    "Você ajuda a manter a qualidade dos roteiros de Instagram da psicanalista Tatiana Ferreira (@psi_tatianaferreira).",
+    "A equipe registrou um pedido de " + (status === "ajuste" ? "AJUSTE" : "REPROVAÇÃO") + " em um roteiro. Decida se ele deve valer também para os PRÓXIMOS conteúdos ou só para este.",
+    "É GERAL quando fala de estilo que se repete: tom de voz, jeito de abrir ou de fazer o gancho e a capa, tamanho do texto, chamada para ação, vocabulário, identidade visual, temas ou abordagens a evitar.",
+    "É ESPECÍFICO quando corrige algo só deste conteúdo: um dado, uma frase pontual, um detalhe do tema, um erro de digitação.",
+    "Se for geral, escreva a regra como uma instrução curta e afirmativa para quem escreve os próximos roteiros (até 25 palavras), sem citar este roteiro.",
+    "Se já existir uma regra com o mesmo sentido, informe o id dela em \"repete\".",
+    "", "REGRAS JÁ EXISTENTES (id | texto):", existentes,
+    "", "PEDIDO:", "Tipo de solicitação: " + motivo, "Comentário: " + nota,
+    "Formato do roteiro: " + nomeFormato(it.formato), "Título: " + (it.titulo || it.tema),
+    "Trecho do roteiro: " + String(it.texto || "").slice(0, 1500),
+    "", "Responda SOMENTE com JSON válido, sem texto antes ou depois:",
+    '{"geral": true, "regra": "", "formato": "todos", "repete": "", "porque": ""}',
+    "Em \"formato\" use todos, reels, carrossel, card ou story. Em \"porque\", até 20 palavras."
+  ].join("\n");
+  let r = null;
+  try { r = lerJson(await streamRoteiro(prompt)); } catch (e) { r = null; }
+  if (!r) r = { geral: MOTIVOS_GERAIS.includes(motivo), regra: nota, formato: "todos", repete: "", porque: "Avaliação automática indisponível; sugestão feita pelo tipo de solicitação." };
+  if (!r.geral) { aprStatus("Pedido registrado. Avaliação: vale só para este roteiro" + (r.porque ? " (" + r.porque + ")" : "") + "."); return; }
+  const fmt = ["todos", "reels", "carrossel", "card", "story"].includes(r.formato) ? r.formato : "todos";
+  const repete = regrasVis().find(x => x.id === r.repete);
+  const sg = { id: "g" + proxId(), pendente: true, ativo: false, texto: String(r.regra || nota).slice(0, 300), formato: fmt, motivo, nota, porque: r.porque || "", repete: repete ? repete.id : "", origemId: it.id, origemTitulo: it.titulo || it.tema, criadoEm: new Date().toISOString(), ocorrencias: 1 };
+  tocar(sg); state.regras.push(sg); salvarRegras([sg]); renderAprendizados();
+  aprStatus("Pedido registrado e avaliado: pode valer para os próximos conteúdos. Revise a sugestão em Aprendizados, abaixo.");
+}
+function aceitarSugestao(id, textoEditado) {
+  const sg = state.regras.find(x => x.id === id); if (!sg) return;
+  const existente = sg.repete && regrasVis().find(x => x.id === sg.repete);
+  if (existente) {
+    existente.ocorrencias = (existente.ocorrencias || 1) + 1; existente.ativo = true; tocar(existente);
+    sg.apagado = true; sg.resolucao = "reforcou " + existente.id; tocar(sg); salvarRegras([existente, sg]);
+    apzStatus("Regra existente reforçada: agora com " + existente.ocorrencias + " pedidos.");
+  } else {
+    sg.pendente = false; sg.ativo = true; if (textoEditado) sg.texto = textoEditado.slice(0, 300); tocar(sg); salvarRegras([sg]);
+    apzStatus("Regra salva. Ela já vale para as próximas gerações.");
+  }
+  renderAprendizados();
+}
+function descartarSugestao(id) {
+  const sg = state.regras.find(x => x.id === id); if (!sg) return;
+  sg.apagado = true; sg.resolucao = "especifico"; tocar(sg); salvarRegras([sg]); renderAprendizados();
+  apzStatus("Sugestão descartada: o pedido vale só para aquele roteiro.");
+}
+function alternarRegra(id) { const r = state.regras.find(x => x.id === id); if (!r) return; r.ativo = r.ativo === false; tocar(r); salvarRegras([r]); renderAprendizados(); }
+function excluirRegra(id) { const r = state.regras.find(x => x.id === id); if (!r) return; r.apagado = true; tocar(r); salvarRegras([r]); renderAprendizados(); apzStatus("Regra excluída."); }
+function nomeFmtRegra(f) { return !f || f === "todos" ? "Todos os formatos" : nomeFormato(f); }
+function renderAprendizados() {
+  const sb = $("sug-regras"); sb.replaceChildren();
+  const sugs = sugVis();
+  if (!sugs.length) sb.append(el("div", { class: "empty" }, "Nenhuma sugestão pendente."));
+  sugs.slice().reverse().forEach(sg => {
+    const rep = sg.repete && regrasVis().find(x => x.id === sg.repete);
+    const ta = el("textarea", { "aria-label": "Texto da regra sugerida" }); ta.value = sg.texto;
+    const box = el("div", { class: "regra sug" },
+      el("div", { class: "meta" }, "Pedido de " + (sg.motivo || "ajuste") + " em “" + sg.origemTitulo + "”: " + sg.nota),
+      rep ? el("div", { class: "r" }, "Parece repetir a regra: " + rep.texto) : ta,
+      el("div", { class: "meta" }, "Vale para: " + nomeFmtRegra(sg.formato) + (sg.porque ? " · " + sg.porque : "")),
+      el("div", { class: "row" },
+        el("button", { class: "btn small", type: "button", onclick: () => aceitarSugestao(sg.id, rep ? "" : ta.value.trim()) }, rep ? "Reforçar regra existente" : "Salvar como regra"),
+        el("button", { class: "btn small ghost", type: "button", onclick: () => descartarSugestao(sg.id) }, "Vale só para este roteiro")));
+    sb.append(box);
+  });
+  const rb = $("regras"); rb.replaceChildren();
+  const lista = regrasVis().sort((a, b) => (b.ocorrencias || 1) - (a.ocorrencias || 1) || String(b.criadoEm).localeCompare(String(a.criadoEm)));
+  if (!lista.length) rb.append(el("div", { class: "empty" }, "Nenhuma regra ainda. Elas aparecem aqui quando uma sugestão é aprovada ou adicionada manualmente."));
+  lista.forEach(r => {
+    let confirma = false;
+    const del = el("button", { class: "icon", type: "button", onclick: () => { if (!confirma) { confirma = true; del.textContent = "Confirmar exclusão"; setTimeout(() => { confirma = false; del.textContent = "Excluir"; }, 3000); } else excluirRegra(r.id); } }, "Excluir");
+    rb.append(el("div", { class: "regra" + (r.ativo === false ? " off" : "") },
+      el("div", { class: "r" }, r.texto),
+      el("div", { class: "meta" }, nomeFmtRegra(r.formato) + " · " + (r.ocorrencias || 1) + (r.ocorrencias > 1 ? " pedidos" : " pedido") + (r.motivo ? " · " + r.motivo : "") + (r.origemTitulo ? " · origem: “" + r.origemTitulo + "”" : "") + " · " + (r.ativo === false ? "pausada" : "ativa")),
+      el("div", { class: "row" }, el("button", { class: "icon", type: "button", onclick: () => alternarRegra(r.id) }, r.ativo === false ? "Reativar" : "Pausar"), del)));
+  });
+}
+function adicionarRegraManual() {
+  const t = $("nr-texto").value.trim(); if (!t) { apzStatus("Escreva a regra antes de adicionar.", true); return; }
+  novaRegra(t, $("nr-formato").value, "Manual", null); $("nr-texto").value = ""; renderAprendizados(); apzStatus("Regra adicionada. Ela já vale para as próximas gerações.");
+}
+
 /* ---------- Formulário ---------- */
 function renderEscolhas() {
   const f = $("formatos"); f.replaceChildren();
@@ -846,6 +973,8 @@ function montarPrompt() {
     p += "\n\nCATÁLOGO DE MATERIAIS DA TATIANA (ID | tipo | categoria | descrição | link). Use SOMENTE itens deste catálogo, copiando ID e link exatamente; não invente links. " +
       "No prompt do Canva, diga em qual " + (state.formato === "story" ? "tela" : "slide") + " entra cada material sugerido.\n" + catalogoTexto();
   }
+  const regras = regrasParaGerar(state.formato);
+  if (regras.length) p += "\n\nAPRENDIZADOS DE AJUSTES ANTERIORES (regras aprovadas pela Tatiana e pela consultoria a partir de pedidos de ajuste; siga todas neste roteiro, sem contrariar ética, sigilo e as regras de base):\n- " + regras.map(r => r.texto).join("\n- ");
   p += "\n\nMODELO DO DOCUMENTO (siga a estrutura, troque as instruções entre parênteses pelo conteúdo real e dê um nome curto ao tema no título):\n" + modelo;
   return p;
 }
@@ -910,7 +1039,7 @@ async function gerar() {
 }
 
 async function salvarNovo(texto, tema) {
-  const it = { id: String(Date.now()), criadoEm: new Date().toISOString(), tema, modo: state.modo, formato: state.formato, cta: state.cta, titulo: tituloDoDoc(texto, tema), texto, favorito: false };
+  const it = { id: String(Date.now()), criadoEm: new Date().toISOString(), tema, modo: state.modo, formato: state.formato, cta: state.cta, titulo: tituloDoDoc(texto, tema), texto, favorito: false, regrasAplicadas: regrasParaGerar(state.formato).map(r => r.id) };
   tocar(it); state.items.push(it); state.atualId = it.id; state.textoSalvo = texto;
   publicar([it], []);
   try { await state.store.salvar(it); } catch (e) { erro("O roteiro foi gerado, mas não foi salvo no histórico."); }
@@ -1286,9 +1415,9 @@ async function workerAuth(payload) {
   return data;
 }
 // Envia alterações na hora, se houver login; se não, elas sobem na próxima sincronização.
-function publicar(roteiros, materiais) {
-  if (!tokenValido() || (!roteiros.length && !materiais.length)) return;
-  workerAuth({ action: "sync_put", roteiros, materiais })
+function publicar(roteiros, materiais, regras = []) {
+  if (!tokenValido() || (!roteiros.length && !materiais.length && !regras.length)) return;
+  workerAuth({ action: "sync_put", roteiros, materiais, regras })
     .then(() => syncStatus("Sincronizado como " + sync.email.split("@")[0] + " · " + fmtHora(), "ok"))
     .catch(e => syncStatus(e.status === 401 ? "Login expirado: clique em Entrar com Google" : "Alterações pendentes: " + e.message, "err"));
 }
@@ -1314,13 +1443,13 @@ async function sincronizarAgora(silencioso) {
     syncStatus("Sincronizando…", "");
     const d = await workerAuth({ action: "sync_get" });
     sync.email = d.usuario || sync.email;
-    const r = mesclar(state.items, d.roteiros || []), m = mesclar(state.mats, d.materiais || []);
-    state.items = r.lista; state.mats = m.lista;
-    await state.store.todos(state.items); lsSet(KEY_MAT, state.mats);
-    [...r.enviar, ...m.enviar].forEach(x => { if (!x.autor) x.autor = sync.email; });
-    if (r.enviar.length || m.enviar.length) {
-      for (let i = 0; i < Math.max(r.enviar.length, m.enviar.length); i += 100)
-        await workerAuth({ action: "sync_put", roteiros: r.enviar.slice(i, i + 100), materiais: m.enviar.slice(i, i + 100) });
+    const r = mesclar(state.items, d.roteiros || []), m = mesclar(state.mats, d.materiais || []), g = mesclar(state.regras, d.regras || []);
+    state.items = r.lista; state.mats = m.lista; state.regras = g.lista;
+    await state.store.todos(state.items); lsSet(KEY_MAT, state.mats); lsSet(KEY_REGRAS, state.regras);
+    [...r.enviar, ...m.enviar, ...g.enviar].forEach(x => { if (!x.autor) x.autor = sync.email; });
+    if (r.enviar.length || m.enviar.length || g.enviar.length) {
+      for (let i = 0; i < Math.max(r.enviar.length, m.enviar.length, g.enviar.length); i += 100)
+        await workerAuth({ action: "sync_put", roteiros: r.enviar.slice(i, i + 100), materiais: m.enviar.slice(i, i + 100), regras: g.enviar.slice(i, i + 100) });
     }
     sync.ultimo = Date.now();
     syncStatus("Sincronizado como " + sync.email.split("@")[0] + " · " + fmtHora(), "ok");
@@ -1370,6 +1499,7 @@ function ligar() {
   $("nav-rot").addEventListener("click", () => mostrar("rot"));
   $("nav-mat").addEventListener("click", () => mostrar("mat"));
   $("nav-apr").addEventListener("click", () => mostrar("apr"));
+  $("b-nr").addEventListener("click", adicionarRegraManual);
   ["aq", "af-formato"].forEach(id => $(id).addEventListener("input", renderAprovacao));
   $("m-tema").addEventListener("click", () => { state.modo = "tema"; renderModo(); });
   $("m-ref").addEventListener("click", () => { state.modo = "ref"; renderModo(); });
@@ -1402,6 +1532,7 @@ async function iniciar() {
   $("identidade").value = lsGet(KEY_ID, null) || IDENTIDADE_PADRAO;
   $("palavras").value = lsGet(KEY_PALAVRAS, null) || PALAVRAS_PADRAO;
   state.mats = lsGet(KEY_MAT, []) || [];
+  state.regras = lsGet(KEY_REGRAS, []) || [];
   $("usar-mat").checked = lsGet(KEY_USAR, true) !== false;
   renderEscolhas(); renderModo(); ligar(); renderMateriais();
   carregarGoogle();
