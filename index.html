@@ -147,7 +147,33 @@ details[open] summary { margin-bottom: 8px; }
 #link-raiz { color: var(--accent); font-weight: 600; font-size: 14px; }
 .mat .d { font-size: 14px; }
 
+/* Aprovação */
+.tiles.st { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.tiles.st .tile { border-top: 4px solid var(--c, var(--accent)); }
+.apr-bar { display: grid; grid-template-columns: 2fr 1fr; gap: 8px; }
+.kanban { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-items: start; }
+.motivos { display: flex; flex-direction: column; gap: 6px; }
+.motivos .bar { grid-template-columns: 220px 1fr 24px; }
+.col { background: var(--surface); border: 1px solid var(--line); border-top: 4px solid var(--c, var(--accent)); border-radius: 10px; padding: 10px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.col h3 { font-size: 15px; display: flex; justify-content: space-between; align-items: baseline; gap: 6px; }
+.col h3 .n { font-family: var(--font-body); color: var(--muted); font-size: 13px; font-weight: 600; }
+.card { border: 1px solid var(--line); border-left: 4px solid var(--c, var(--accent)); border-radius: 8px; padding: 8px 10px; background: var(--bg); display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.card .t { font-weight: 600; overflow-wrap: anywhere; cursor: pointer; background: none; border: 0; text-align: left; padding: 0; color: var(--title); }
+.card .meta { color: var(--muted); font-size: 12px; }
+.card .nota { color: var(--ink); background: var(--surface); border-radius: 6px; padding: 4px 8px; font-size: 12px; overflow-wrap: anywhere; }
+.card .nota b { color: var(--c, var(--accent)); }
+.card a { color: var(--accent); font-size: 12px; overflow-wrap: anywhere; }
+.card select, .card input { padding: 6px 8px; font-size: 13px; }
+.card details { padding: 4px 8px; font-size: 12px; }
+.card details summary { font-size: 12px; }
+.card details ol { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+.chip.st { background: transparent; border: 1px solid var(--c, var(--accent)); color: var(--c, var(--accent)); font-weight: 600; }
+
 @media (max-width: 900px) {
+  .tiles.st { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .apr-bar { grid-template-columns: 1fr; }
+  .kanban { grid-template-columns: minmax(0, 1fr); }
+  .motivos .bar { grid-template-columns: 140px 1fr 24px; }
   .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .main { grid-template-columns: minmax(0, 1fr); }
   .grid2 { grid-template-columns: 1fr; }
@@ -174,6 +200,7 @@ details[open] summary { margin-bottom: 8px; }
 
   <nav class="nav" role="tablist" aria-label="Seções">
     <button role="tab" id="nav-rot" aria-selected="true" type="button">Roteiros</button>
+    <button role="tab" id="nav-apr" aria-selected="false" type="button">Aprovação de conteúdo</button>
     <button role="tab" id="nav-mat" aria-selected="false" type="button">Materiais de produção</button>
   </nav>
 
@@ -264,6 +291,26 @@ details[open] summary { margin-bottom: 8px; }
         <div class="list" id="lista"></div>
       </section>
     </div>
+  </div>
+
+  <!-- ===================== APROVAÇÃO ===================== -->
+  <div class="view" id="view-apr" hidden>
+    <section class="tiles st" id="apr-tiles" aria-label="Roteiros por status"></section>
+    <section class="panel" aria-labelledby="h-apr">
+      <h2 id="h-apr">Fluxo de aprovação</h2>
+      <p class="hint">Cada roteiro começa em "Aguardando aprovação". Para pedir ajuste ou reprovar, escolha o tipo de solicitação e descreva o motivo: tudo fica no histórico do roteiro e no resumo de motivos abaixo. Ao salvar alterações num roteiro "Em ajuste", ele passa sozinho para "Ajustado". Depois de publicar, marque "Postado no perfil" e cole o link do post.</p>
+      <div class="apr-bar">
+        <input type="search" id="aq" placeholder="Buscar roteiro" aria-label="Buscar roteiro no fluxo de aprovação">
+        <select id="af-formato" aria-label="Filtrar por formato"><option value="">Todos os formatos</option></select>
+      </div>
+      <div class="status" id="apr-status" role="status"></div>
+      <div class="kanban" id="kanban"></div>
+    </section>
+    <section class="panel" aria-labelledby="h-mot">
+      <h2 id="h-mot">Motivos de ajuste e reprovação</h2>
+      <p class="hint">Contagem de todas as solicitações registradas. Mostra o que mais precisa de atenção nos próximos roteiros.</p>
+      <div class="motivos" id="motivos"></div>
+    </section>
   </div>
 
   <!-- ===================== MATERIAIS ===================== -->
@@ -624,6 +671,7 @@ function renderLista() {
     (!q || (i.titulo + " " + i.tema + " " + i.texto).toLowerCase().includes(q)))
     .sort((a, b) => new Date(b.criadoEm) - new Date(a.criadoEm));
   const box = $("lista"); box.replaceChildren();
+  if (!$("view-apr").hidden) renderAprovacao();
   if (!its.length) { box.append(el("div", { class: "empty" }, vis().length ? "Nenhum roteiro com esses filtros." : "Nenhum roteiro criado ainda. O primeiro aparece aqui.")); return; }
   its.forEach(i => {
     const abrir = el("button", { class: "t", type: "button", onclick: () => abrirItem(i.id) }, i.titulo || i.tema);
@@ -632,12 +680,14 @@ function renderLista() {
     const del = el("button", { class: "icon", type: "button", onclick: () => { if (!confirma) { confirma = true; del.textContent = "Confirmar exclusão"; setTimeout(() => { confirma = false; del.textContent = "Excluir"; }, 3000); } else apagarItem(i.id); } }, "Excluir");
     box.append(el("div", { class: "item" + (i.id === state.atualId ? " active" : "") },
       abrir,
-      el("div", { class: "chips" }, el("span", { class: "chip f" }, nomeFormato(i.formato)), el("span", { class: "chip" }, nomeCta(i.cta))),
+      el("div", { class: "chips" }, el("span", { class: "chip f" }, nomeFormato(i.formato)), el("span", { class: "chip" }, nomeCta(i.cta)), chipStatus(i)),
       el("div", { class: "meta" }, el("span", null, fmtData(i.criadoEm) + ((i.autor || i.alteradoPor) ? " · por " + String(i.autor || i.alteradoPor).split("@")[0] : "")), el("span", { class: "acts" }, fb, del))));
   });
 }
+function chipStatus(i) { const s = stInfo(statusDe(i)); const c = el("span", { class: "chip st" }, s.nome); c.style.setProperty("--c", s.cor); return c; }
 function popularFiltros() {
   FORMATOS.forEach(f => $("f-formato").append(el("option", { value: f.id }, f.nome)));
+  FORMATOS.forEach(f => $("af-formato").append(el("option", { value: f.id }, f.nome)));
   CTAS.forEach(c => $("f-cta").append(el("option", { value: c.id }, c.nome)));
 }
 function abrirItem(id) {
@@ -659,6 +709,98 @@ async function apagarItem(id) {
   try { const it = state.items.find(x => x.id === id); if (it) { it.apagado = true; it.texto = ""; tocar(it); await state.store.salvar(it); publicar([it], []); } if (state.atualId === id) state.atualId = null; }
   catch (e) { erro("Não foi possível excluir."); }
   renderResumo(); renderLista();
+}
+
+/* ---------- Aprovação de conteúdo ---------- */
+const STATUS = [
+  { id: "gerado", nome: "Aguardando aprovação", cor: "#5A6B78" },
+  { id: "aprovado", nome: "Aprovado", cor: "#2E7D4F" },
+  { id: "ajuste", nome: "Em ajuste", cor: "#A53618" },
+  { id: "ajustado", nome: "Ajustado", cor: "#1C5276" },
+  { id: "reprovado", nome: "Reprovado", cor: "#9B2C2C" },
+  { id: "postado", nome: "Postado no perfil", cor: "#134B9E" }
+];
+const MOTIVOS = ["Tom de voz", "Gancho ou capa", "Tema ou abordagem", "Tamanho do texto", "Chamada para ação (CTA)", "Identidade visual", "Informação incorreta ou sensível", "Fora da linha editorial", "Outro"];
+const statusDe = (i) => (STATUS.some(s => s.id === i.status) ? i.status : "gerado");
+const stInfo = (id) => STATUS.find(s => s.id === id) || STATUS[0];
+const quem = (e) => e ? String(e).split("@")[0] : "";
+function registrarStatus(it, novo, nota, motivo) {
+  it.status = novo;
+  const reg = { status: novo, em: new Date().toISOString(), por: sync.email || "", nota: nota || "" };
+  if (motivo) reg.motivo = motivo;
+  it.historicoStatus = (Array.isArray(it.historicoStatus) ? it.historicoStatus : []).concat(reg).slice(-60);
+}
+function aprStatus(msg, err) { $("apr-status").textContent = msg; $("apr-status").className = "status" + (err ? " err" : ""); }
+async function mudarStatus(id, novo, texto, motivo) {
+  const it = state.items.find(x => x.id === id); if (!it) return;
+  texto = (texto || "").trim();
+  const pedeMotivo = novo === "ajuste" || novo === "reprovado";
+  if (pedeMotivo && !motivo) { aprStatus("Escolha o tipo de solicitação antes de atualizar.", true); return; }
+  if (pedeMotivo && !texto) { aprStatus("Descreva " + (novo === "ajuste" ? "o que precisa ajustar" : "o motivo da reprovação") + " antes de atualizar.", true); return; }
+  if (!pedeMotivo) motivo = "";
+  let nota = texto;
+  if (novo === "postado" && texto) {
+    if (linkValido(texto)) { it.linkPost = texto; nota = ""; }
+  }
+  if (novo === "postado") it.postadoEm = new Date().toISOString();
+  registrarStatus(it, novo, nota, motivo); tocar(it);
+  publicar([it], []);
+  try { await state.store.salvar(it); aprStatus("“" + (it.titulo || it.tema) + "” agora está em " + stInfo(novo).nome + "."); }
+  catch (e) { aprStatus("Não foi possível salvar o novo status.", true); }
+  renderLista(); renderAprovacao();
+}
+function renderAprovacao() {
+  const todos = vis();
+  const porSt = {}; todos.forEach(i => { const s = statusDe(i); porSt[s] = (porSt[s] || 0) + 1; });
+  const tiles = $("apr-tiles"); tiles.replaceChildren();
+  STATUS.forEach(s => { const t = el("div", { class: "tile" }, el("div", { class: "lbl" }, s.nome), el("div", { class: "val" }, String(porSt[s.id] || 0))); t.style.setProperty("--c", s.cor); tiles.append(t); });
+  const q = $("aq").value.trim().toLowerCase(), ff = $("af-formato").value;
+  const its = todos.filter(i => (!ff || i.formato === ff) && (!q || ((i.titulo || "") + " " + (i.tema || "")).toLowerCase().includes(q)))
+    .sort((a, b) => String(b.atualizadoEm || b.criadoEm).localeCompare(String(a.atualizadoEm || a.criadoEm)));
+  const kb = $("kanban"); kb.replaceChildren();
+  STATUS.forEach(s => {
+    const lista = its.filter(i => statusDe(i) === s.id);
+    const col = el("div", { class: "col" }, el("h3", null, s.nome, el("span", { class: "n" }, String(lista.length))));
+    col.style.setProperty("--c", s.cor);
+    if (!lista.length) col.append(el("div", { class: "empty" }, "Nenhum roteiro aqui."));
+    lista.forEach(i => col.append(cardAprovacao(i, s)));
+    kb.append(col);
+  });
+  const cont = {};
+  todos.forEach(i => (Array.isArray(i.historicoStatus) ? i.historicoStatus : []).forEach(h => { if (h.motivo) { const k = h.motivo + "|" + h.status; cont[k] = (cont[k] || 0) + 1; } }));
+  const mb = $("motivos"); mb.replaceChildren();
+  const chaves = Object.keys(cont).sort((a, b) => cont[b] - cont[a]);
+  if (!chaves.length) { mb.append(el("div", { class: "empty" }, "Ainda não há ajustes ou reprovações registrados.")); return; }
+  const max = Math.max(...chaves.map(k => cont[k]));
+  chaves.forEach(k => { const [m, st] = k.split("|"), barra = el("i"); barra.style.width = (cont[k] / max * 100) + "%"; barra.style.background = stInfo(st).cor;
+    mb.append(el("div", { class: "bar" }, el("span", null, m + " · " + (st === "ajuste" ? "ajuste" : "reprovação")), el("div", null, barra), el("span", null, String(cont[k])))); });
+}
+function cardAprovacao(i, s) {
+  const hist = Array.isArray(i.historicoStatus) ? i.historicoStatus : [];
+  const ultNota = [...hist].reverse().find(h => h.nota);
+  const card = el("div", { class: "card" });
+  card.style.setProperty("--c", s.cor);
+  card.append(el("button", { class: "t", type: "button", title: "Abrir o roteiro", onclick: () => { mostrar("rot"); abrirItem(i.id); window.scrollTo({ top: 0, behavior: "smooth" }); } }, i.titulo || i.tema));
+  card.append(el("div", { class: "chips" }, el("span", { class: "chip f" }, nomeFormato(i.formato)), el("span", { class: "chip" }, nomeCta(i.cta))));
+  card.append(el("div", { class: "meta" }, "Criado em " + fmtData(i.criadoEm) + (i.postadoEm ? " · postado em " + fmtData(i.postadoEm) : "")));
+  if (ultNota) { const n = el("div", { class: "nota" }, el("b", null, stInfo(ultNota.status).nome + (ultNota.motivo ? " (" + ultNota.motivo + ")" : "") + ": "), ultNota.nota); n.style.setProperty("--c", stInfo(ultNota.status).cor); card.append(n); }
+  if (i.linkPost) card.append(el("a", { href: i.linkPost, target: "_blank", rel: "noopener" }, "Ver post no Instagram"));
+  const sel = el("select", { "aria-label": "Novo status" });
+  STATUS.forEach(x => { const o = el("option", { value: x.id }, x.nome); if (x.id === s.id) o.selected = true; sel.append(o); });
+  const mot = el("select", { "aria-label": "Tipo de solicitação" });
+  mot.append(el("option", { value: "" }, "Tipo de solicitação…"));
+  MOTIVOS.forEach(m => mot.append(el("option", { value: m }, m)));
+  const txt = el("input", { type: "text", "aria-label": "Comentário ou link do post" });
+  const dica = () => { const v = sel.value; mot.hidden = !(v === "ajuste" || v === "reprovado"); txt.placeholder = v === "ajuste" ? "O que precisa ajustar? (obrigatório)" : v === "reprovado" ? "Motivo da reprovação (obrigatório)" : v === "postado" ? "Link do post (opcional)" : "Comentário (opcional)"; };
+  sel.addEventListener("change", dica); dica();
+  const btn = el("button", { class: "btn small", type: "button", onclick: () => mudarStatus(i.id, sel.value, txt.value, mot.value) }, "Atualizar status");
+  card.append(sel, mot, txt, btn);
+  if (hist.length) {
+    const ol = el("ol");
+    [...hist].reverse().forEach(h => ol.append(el("li", null, stInfo(h.status).nome + " · " + fmtData(h.em) + (h.por ? " · " + quem(h.por) : "") + (h.motivo ? " · " + h.motivo : "") + (h.nota ? " — " + h.nota : ""))));
+    card.append(el("details", null, el("summary", null, "Histórico de status (" + hist.length + ")"), ol));
+  }
+  return card;
 }
 
 /* ---------- Formulário ---------- */
@@ -775,9 +917,12 @@ async function salvarNovo(texto, tema) {
 }
 async function salvarAlteracoes() {
   const it = state.items.find(x => x.id === state.atualId); if (!it) return;
-  it.texto = $("doc").value; it.titulo = tituloDoDoc(it.texto, it.tema); state.textoSalvo = it.texto; tocar(it);
+  it.texto = $("doc").value; it.titulo = tituloDoDoc(it.texto, it.tema); state.textoSalvo = it.texto;
+  const virouAjustado = statusDe(it) === "ajuste";
+  if (virouAjustado) registrarStatus(it, "ajustado", "Roteiro editado e salvo");
+  tocar(it);
   publicar([it], []);
-  try { await state.store.salvar(it); info("Alterações salvas."); } catch (e) { erro("Não foi possível salvar as alterações."); }
+  try { await state.store.salvar(it); info(virouAjustado ? "Alterações salvas. O roteiro passou para Ajustado no fluxo de aprovação." : "Alterações salvas."); } catch (e) { erro("Não foi possível salvar as alterações."); }
   atualizarBotoesDoc(); renderLista();
 }
 
@@ -1216,15 +1361,16 @@ function entrarESincronizar() {
 
 /* ---------- Navegação ---------- */
 function mostrar(qual) {
-  const mat = qual === "mat";
-  $("view-rot").hidden = mat; $("view-mat").hidden = !mat;
-  $("nav-rot").setAttribute("aria-selected", String(!mat)); $("nav-mat").setAttribute("aria-selected", String(mat));
+  ["rot", "apr", "mat"].forEach(v => { $("view-" + v).hidden = v !== qual; $("nav-" + v).setAttribute("aria-selected", String(v === qual)); });
+  if (qual === "apr") renderAprovacao();
 }
 
 /* ---------- Início ---------- */
 function ligar() {
   $("nav-rot").addEventListener("click", () => mostrar("rot"));
   $("nav-mat").addEventListener("click", () => mostrar("mat"));
+  $("nav-apr").addEventListener("click", () => mostrar("apr"));
+  ["aq", "af-formato"].forEach(id => $(id).addEventListener("input", renderAprovacao));
   $("m-tema").addEventListener("click", () => { state.modo = "tema"; renderModo(); });
   $("m-ref").addEventListener("click", () => { state.modo = "ref"; renderModo(); });
   $("b-gerar").addEventListener("click", gerar);
